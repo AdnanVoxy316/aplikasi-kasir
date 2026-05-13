@@ -460,6 +460,109 @@
   document.addEventListener("DOMContentLoaded", bindSettingsAttendanceForm);
 })();
 
+/* --- SETTINGS PANEL TOGGLE LOGIC --- */
+(function settingsPanelToggleLogic() {
+  function bindSettingsPanelToggle() {
+    const settingsRoot = document.querySelector(".settings-content");
+    if (!settingsRoot) return;
+
+    const toggleCards = settingsRoot.querySelectorAll(
+      ".menu-card[data-settings-toggle]",
+    );
+    const panels = settingsRoot.querySelectorAll(
+      ".settings-panel[data-settings-panel]",
+    );
+    if (!toggleCards.length || !panels.length) return;
+
+    const storageKey = "kasirPintarActiveSettingsPanel";
+    const panelMap = new Map();
+
+    function setPanelHeight(panel, expanded) {
+      if (!panel) return;
+      panel.style.maxHeight = expanded ? `${panel.scrollHeight + 24}px` : "0px";
+    }
+
+    function syncCards(activePanelId) {
+      toggleCards.forEach((card) => {
+        card.classList.toggle(
+          "is-active",
+          card.dataset.settingsToggle === activePanelId,
+        );
+      });
+    }
+
+    function openPanel(panelId) {
+      panels.forEach((panel) => {
+        const isTarget = panel.dataset.settingsPanel === panelId;
+        panel.classList.toggle("is-visible", isTarget);
+        panel.setAttribute("aria-hidden", isTarget ? "false" : "true");
+        setPanelHeight(panel, isTarget);
+      });
+
+      syncCards(panelId);
+
+      if (panelId) {
+        window.sessionStorage.setItem(storageKey, panelId);
+      } else {
+        window.sessionStorage.removeItem(storageKey);
+      }
+    }
+
+    panels.forEach((panel) => {
+      panelMap.set(panel.dataset.settingsPanel, panel);
+      panel.classList.remove("is-visible");
+      panel.setAttribute("aria-hidden", "true");
+      panel.style.maxHeight = "0px";
+    });
+
+    toggleCards.forEach((card) => {
+      card.addEventListener("click", (event) => {
+        event.preventDefault();
+        const targetId = card.dataset.settingsToggle || "";
+        const targetPanel = panelMap.get(targetId);
+        if (!targetPanel) return;
+
+        const isAlreadyOpen = targetPanel.classList.contains("is-visible");
+        openPanel(isAlreadyOpen ? "" : targetId);
+      });
+    });
+
+    settingsRoot.querySelectorAll("form").forEach((form) => {
+      form.addEventListener("submit", () => {
+        const parentPanel = form.closest(
+          ".settings-panel[data-settings-panel]",
+        );
+        if (!parentPanel) return;
+        window.sessionStorage.setItem(
+          storageKey,
+          parentPanel.dataset.settingsPanel || "",
+        );
+      });
+    });
+
+    const initialPanelId =
+      window.location.hash.replace(/^#/, "") ||
+      window.sessionStorage.getItem(storageKey) ||
+      "";
+
+    if (initialPanelId && panelMap.has(initialPanelId)) {
+      openPanel(initialPanelId);
+    } else {
+      openPanel("");
+    }
+
+    window.addEventListener("resize", () => {
+      panels.forEach((panel) => {
+        if (panel.classList.contains("is-visible")) {
+          setPanelHeight(panel, true);
+        }
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", bindSettingsPanelToggle);
+})();
+
 /* --- DASHBOARD LOGIC --- */
 (function dashboardLogic() {
   const root = document.getElementById("dashboardPageRoot");

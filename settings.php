@@ -388,31 +388,31 @@ if ($is_logged_in) {
                     <div class="desc">Masuk sebagai admin untuk kelola sistem. Reset password admin via phpMyAdmin.</div>
                 </a>
             <?php } elseif ($is_admin) { ?>
-                <a href="#user-management" class="menu-card menu-card-profile">
+                <a href="#user-management" class="menu-card menu-card-profile" data-settings-toggle="user-management">
                     <span class="menu-card-icon"><i class="fas fa-users-cog"></i></span>
                     <div class="title">User Management</div>
                     <div class="desc">Lihat akun kasir, hash password, jam kerja dan status Online/Offline.</div>
                 </a>
 
-                <a href="#store-profile" class="menu-card menu-card-attendance">
+                <a href="#store-profile" class="menu-card menu-card-attendance" data-settings-toggle="store-profile">
                     <span class="menu-card-icon"><i class="fas fa-store"></i></span>
                     <div class="title">Store Profile</div>
                     <div class="desc">Ubah nama dan alamat toko untuk struk.</div>
                 </a>
 
-                <a href="#attendance-log" class="menu-card menu-card-attendance">
+                <a href="#attendance-log" class="menu-card menu-card-attendance" data-settings-toggle="attendance-log">
                     <span class="menu-card-icon"><i class="fas fa-clipboard-list"></i></span>
                     <div class="title">Attendance Log</div>
                     <div class="desc">Pantau jam Absen Masuk/Keluar semua kasir.</div>
                 </a>
             <?php } elseif ($is_cashier) { ?>
-                <a href="#my-profile" class="menu-card menu-card-profile">
+                <a href="#my-profile" class="menu-card menu-card-profile" data-settings-toggle="my-profile">
                     <span class="menu-card-icon"><i class="fas fa-id-badge"></i></span>
                     <div class="title">My Profile</div>
                     <div class="desc">Ganti nama lengkap dan password Anda.</div>
                 </a>
 
-                <a href="#attendance" class="menu-card menu-card-attendance">
+                <a href="#attendance" class="menu-card menu-card-attendance" data-settings-toggle="attendance">
                     <span class="menu-card-icon"><i class="fas fa-fingerprint"></i></span>
                     <div class="title">Attendance</div>
                     <div class="desc">Lakukan Absen Masuk / Absen Keluar.</div>
@@ -427,7 +427,7 @@ if ($is_logged_in) {
         </div>
 
         <?php if ($is_admin) { ?>
-            <div class="panel" id="store-profile">
+            <div class="panel settings-panel settings-panel--attendance" id="store-profile" data-settings-panel="store-profile" aria-hidden="true">
                 <h5><i class="fas fa-store me-2"></i>Store Profile</h5>
                 <form method="POST" action="settings.php">
                     <input type="hidden" name="action" value="update_store_profile">
@@ -443,7 +443,7 @@ if ($is_logged_in) {
                 </form>
             </div>
 
-            <div class="panel" id="user-management">
+            <div class="panel settings-panel settings-panel--profile" id="user-management" data-settings-panel="user-management" aria-hidden="true">
                 <h5><i class="fas fa-users-cog me-2"></i>User Management (Kasir)</h5>
                 <form method="POST" action="settings.php" class="row g-2 mb-3">
                     <input type="hidden" name="action" value="add_cashier">
@@ -486,7 +486,7 @@ if ($is_logged_in) {
                 </div>
             </div>
 
-            <div class="panel" id="attendance-log">
+            <div class="panel settings-panel settings-panel--attendance" id="attendance-log" data-settings-panel="attendance-log" aria-hidden="true">
                 <h5><i class="fas fa-clipboard-list me-2"></i>Attendance Log</h5>
                 <div class="table-responsive">
                     <table class="table table-striped table-bordered">
@@ -509,7 +509,7 @@ if ($is_logged_in) {
         <?php } ?>
 
         <?php if ($is_cashier) { ?>
-            <div class="panel" id="my-profile">
+            <div class="panel settings-panel settings-panel--profile" id="my-profile" data-settings-panel="my-profile" aria-hidden="true">
                 <h5><i class="fas fa-id-badge me-2"></i>My Profile</h5>
                 <form method="POST" action="settings.php" class="settings-form settings-profile-form">
                     <input type="hidden" name="action" value="update_my_profile">
@@ -546,7 +546,7 @@ if ($is_logged_in) {
                 </form>
             </div>
 
-            <div class="panel" id="attendance">
+            <div class="panel settings-panel settings-panel--attendance" id="attendance" data-settings-panel="attendance" aria-hidden="true">
                 <h5><i class="fas fa-fingerprint me-2"></i>Attendance</h5>
                 <p class="text-muted">Status shift saat ini:
                     <span id="settingsAttendanceStatusBadge" class="badge <?php echo $current_shift_open ? 'bg-success' : 'bg-secondary'; ?>"><?php echo $current_shift_open ? 'Online' : 'Offline'; ?></span>
