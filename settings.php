@@ -362,7 +362,7 @@ if ($is_logged_in) {
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
-<body>
+<body class="<?php echo $is_logged_in ? 'logged-in' : 'guest-mode'; ?>" data-role="<?php echo htmlspecialchars($current_role); ?>">
 <?php include 'includes/sidebar.php'; ?>
 <div class="main-content">
     <?php include 'includes/header.php'; ?>
@@ -374,7 +374,7 @@ if ($is_logged_in) {
             </div>
             <span class="settings-role-badge"><?php echo htmlspecialchars($current_role); ?></span>
         </div>
-        <div class="menu-grid">
+        <div class="menu-grid <?php echo !$is_logged_in ? 'menu-grid--guest' : ''; ?>">
             <?php if (!$is_logged_in) { ?>
                 <a href="auth/login/login_cashier.php" class="menu-card menu-card-attendance">
                     <span class="menu-card-icon"><i class="fas fa-user-clock"></i></span>

@@ -14,14 +14,12 @@ $active_cashier_name = $is_logged_in_sidebar
 <div class="sidebar">
     <div class="sidebar-brand">
         <div class="sidebar-brand-top">
+            <button type="button" class="sidebar-toggle-btn sidebar-toggle-btn--internal" id="sidebarToggleBtnInternal" data-sidebar-toggle="1" aria-label="Hide sidebar" aria-expanded="true">
+                <i class="fas fa-chevron-left sidebar-toggle-icon" aria-hidden="true"></i>
+            </button>
             <div class="sidebar-brand-copy">
                 <h5>Kasir Pintar</h5>
             </div>
-            <button type="button" class="sidebar-toggle-btn sidebar-toggle-btn--internal" id="sidebarToggleBtnInternal" data-sidebar-toggle="1" aria-label="Toggle sidebar" aria-expanded="true">
-                <span class="sidebar-toggle-line"></span>
-                <span class="sidebar-toggle-line"></span>
-                <span class="sidebar-toggle-line"></span>
-            </button>
         </div>
         <small class="sidebar-meta">
             Active Cashier: <?php echo htmlspecialchars($active_cashier_name); ?>
@@ -60,7 +58,7 @@ $active_cashier_name = $is_logged_in_sidebar
         <li>
             <a href="/aplikasi-kasir-copy/settings.php" <?php echo ($current_page === 'settings.php') ? 'class="active"' : ''; ?>>
                 <i class="fas fa-cog"></i>
-                <span><?php echo $is_logged_in_sidebar ? 'Settings' : 'Settings (Login)'; ?></span>
+                <span>Settings</span>
             </a>
         </li>
         <?php if ($is_logged_in_sidebar) { ?>

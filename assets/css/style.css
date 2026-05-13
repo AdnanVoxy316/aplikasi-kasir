@@ -78,7 +78,7 @@ body.sidebar-collapsed .sidebar {
 .sidebar-brand-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 0.75rem;
 }
 
@@ -256,8 +256,30 @@ body.sidebar-collapsed .main-content {
   transition: all 0.3s ease-in-out;
 }
 
+.sidebar-toggle-icon {
+  font-size: 0.95rem;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.4);
+}
+
 .sidebar-toggle-btn--internal {
   display: inline-flex;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  opacity: 1 !important;
+  width: 1.5rem !important;
+  min-width: 1.5rem !important;
+}
+
+.sidebar-toggle-btn--internal .sidebar-toggle-line {
+  display: none;
+}
+
+.sidebar-toggle-btn--internal:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: transparent;
+  transform: none;
 }
 
 .sidebar-toggle-btn--external {
@@ -657,6 +679,12 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
+}
+
+.menu-grid--guest {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  align-items: stretch;
 }
 
 .menu-card:hover {
@@ -2403,6 +2431,10 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 @media (max-width: 768px) {
+  .menu-grid--guest {
+    grid-template-columns: 1fr;
+  }
+
   .attendance-card {
     padding: 16px;
     border-radius: 14px;
