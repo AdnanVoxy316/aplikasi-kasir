@@ -35,10 +35,12 @@
 /* --- GLOBAL SIDEBAR TOGGLE LOGIC --- */
 (function globalSidebarToggleLogic() {
   function bindSidebarToggle() {
-    const toggleBtn = document.getElementById("sidebarToggleBtn");
+    const toggleButtons = document.querySelectorAll(
+      '[data-sidebar-toggle="1"]',
+    );
     const backdrop = document.getElementById("sidebarBackdrop");
     const sidebarLinks = document.querySelectorAll(".sidebar-menu a");
-    if (!toggleBtn) return;
+    if (!toggleButtons.length) return;
 
     const mobileQuery = window.matchMedia("(max-width: 48rem)");
 
@@ -61,14 +63,16 @@
 
       const sidebarVisible = isMobile ? isOpenMobile : !isCollapsedDesktop;
 
-      toggleBtn.setAttribute(
-        "aria-expanded",
-        sidebarVisible ? "true" : "false",
-      );
-      toggleBtn.classList.toggle(
-        "is-active",
-        isMobile ? isOpenMobile : isCollapsedDesktop,
-      );
+      toggleButtons.forEach((toggleBtn) => {
+        toggleBtn.setAttribute(
+          "aria-expanded",
+          sidebarVisible ? "true" : "false",
+        );
+        toggleBtn.classList.toggle(
+          "is-active",
+          isMobile ? isOpenMobile : isCollapsedDesktop,
+        );
+      });
 
       if (backdrop) {
         backdrop.setAttribute(
@@ -83,13 +87,15 @@
       syncSidebarState();
     }
 
-    toggleBtn.addEventListener("click", () => {
-      if (isMobileViewport()) {
-        document.body.classList.toggle("sidebar-open");
-      } else {
-        document.body.classList.toggle("sidebar-collapsed");
-      }
-      syncSidebarState();
+    toggleButtons.forEach((toggleBtn) => {
+      toggleBtn.addEventListener("click", () => {
+        if (isMobileViewport()) {
+          document.body.classList.toggle("sidebar-open");
+        } else {
+          document.body.classList.toggle("sidebar-collapsed");
+        }
+        syncSidebarState();
+      });
     });
 
     if (backdrop) {
