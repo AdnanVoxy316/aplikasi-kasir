@@ -15,6 +15,9 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
         password VARCHAR(255) NOT NULL,
         role ENUM('admin','kasir') NOT NULL DEFAULT 'kasir',
         nama_lengkap VARCHAR(120) NOT NULL,
+        cashier_id VARCHAR(11) NULL,
+        contact_number VARCHAR(30) NULL,
+        email VARCHAR(150) NULL,
         security_question VARCHAR(255) NULL,
         security_answer VARCHAR(255) NULL,
         is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -28,6 +31,9 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
     ensureColumnExists($conn, 'users', 'password', "ALTER TABLE users ADD COLUMN password VARCHAR(255) NULL AFTER username");
     ensureColumnExists($conn, 'users', 'role', "ALTER TABLE users ADD COLUMN role ENUM('admin','kasir') NOT NULL DEFAULT 'kasir' AFTER password");
     ensureColumnExists($conn, 'users', 'nama_lengkap', "ALTER TABLE users ADD COLUMN nama_lengkap VARCHAR(120) NULL AFTER role");
+    ensureColumnExists($conn, 'users', 'cashier_id', "ALTER TABLE users ADD COLUMN cashier_id VARCHAR(11) NULL AFTER nama_lengkap");
+    ensureColumnExists($conn, 'users', 'contact_number', "ALTER TABLE users ADD COLUMN contact_number VARCHAR(30) NULL AFTER cashier_id");
+    ensureColumnExists($conn, 'users', 'email', "ALTER TABLE users ADD COLUMN email VARCHAR(150) NULL AFTER contact_number");
     ensureColumnExists($conn, 'users', 'security_question', "ALTER TABLE users ADD COLUMN security_question VARCHAR(255) NULL AFTER nama_lengkap");
     ensureColumnExists($conn, 'users', 'security_answer', "ALTER TABLE users ADD COLUMN security_answer VARCHAR(255) NULL AFTER security_question");
     ensureColumnExists($conn, 'users', 'is_active', "ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER nama_lengkap");
@@ -42,6 +48,12 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
     if (columnExists($conn, 'users', 'name') && columnExists($conn, 'users', 'nama_lengkap')) {
         $conn->query("UPDATE users SET nama_lengkap = name WHERE (nama_lengkap IS NULL OR nama_lengkap = '') AND name IS NOT NULL");
     }
+
+    $conn->query("UPDATE users
+                  SET cashier_id = CONCAT('92141', LPAD(id, 6, '0'))
+                  WHERE cashier_id IS NULL
+                     OR cashier_id = ''
+                     OR cashier_id NOT REGEXP '^[0-9]{11}$'");
 
     $admin_exists = false;
     $exists_result = $conn->query("SELECT id FROM users WHERE username = 'admin' LIMIT 1");

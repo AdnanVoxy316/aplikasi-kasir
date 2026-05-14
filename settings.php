@@ -104,12 +104,17 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_my_profile') {
         $nama_lengkap = trim($_POST['nama_lengkap'] ?? '');
+        $contact_number = trim($_POST['contact_number'] ?? '');
+        $email = trim($_POST['email'] ?? '');
         $security_question = trim($_POST['security_question'] ?? '');
         $security_answer = trim($_POST['security_answer'] ?? '');
         $new_password = $_POST['new_password'] ?? '';
+        $cashier_id_input = preg_replace('/\D/', '', (string) ($_POST['cashier_id'] ?? ''));
 
         if ($nama_lengkap === '') {
             $error_message = 'Nama lengkap wajib diisi.';
+        } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $error_message = 'Alamat email tidak valid.';
         } elseif (!in_array($security_question, $security_question_options, true)) {
             $error_message = 'Pertanyaan keamanan tidak valid.';
         } elseif ($security_answer === '') {
@@ -119,11 +124,33 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $safe_question = $conn->real_escape_string($security_question);
             $normalized_answer = mb_strtolower($security_answer, 'UTF-8');
             $safe_answer_hash = $conn->real_escape_string(password_hash($normalized_answer, PASSWORD_DEFAULT));
+            $contact_sql = $contact_number !== ''
+                ? "'" . $conn->real_escape_string($contact_number) . "'"
+                : 'NULL';
+            $email_sql = $email !== ''
+                ? "'" . $conn->real_escape_string($email) . "'"
+                : 'NULL';
             $updates = [
                 "nama_lengkap = '$safe_name'",
+                "contact_number = $contact_sql",
+                "email = $email_sql",
                 "security_question = '$safe_question'",
                 "security_answer = '$safe_answer_hash'"
             ];
+
+            if ($is_admin) {
+                if (!preg_match('/^\d{11}$/', $cashier_id_input)) {
+                    $error_message = 'ID Kasir harus terdiri dari 11 digit angka.';
+                } else {
+                    $safe_cashier_id = $conn->real_escape_string($cashier_id_input);
+                    $cashier_id_exists = $conn->query("SELECT id FROM users WHERE cashier_id = '$safe_cashier_id' AND id != $current_user_id LIMIT 1");
+                    if ($cashier_id_exists && $cashier_id_exists->num_rows > 0) {
+                        $error_message = 'ID Kasir sudah digunakan oleh pengguna lain.';
+                    } else {
+                        $updates[] = "cashier_id = '$safe_cashier_id'";
+                    }
+                }
+            }
 
             if ($new_password !== '') {
                 if (strlen($new_password) < 6) {
@@ -137,7 +164,7 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($error_message === '') {
                 $query = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = $current_user_id LIMIT 1";
                 if ($conn->query($query)) {
-                    $fresh = $conn->query("SELECT id, username, nama_lengkap, role FROM users WHERE id = $current_user_id LIMIT 1");
+                    $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email FROM users WHERE id = $current_user_id LIMIT 1");
                     if ($fresh && $fresh->num_rows === 1) {
                         loginCashierSession($fresh->fetch_assoc());
                         $current_user = getCurrentCashier();
@@ -340,10 +367,23 @@ if ($is_cashier) {
 }
 
 $selected_security_question = $security_question_options[0];
+$current_user_profile = [
+    'username' => (string) ($current_user['username'] ?? ''),
+    'nama_lengkap' => (string) ($current_user['name'] ?? ''),
+    'cashier_id' => (string) ($current_user['cashier_id'] ?? ''),
+    'contact_number' => (string) ($current_user['contact_number'] ?? ''),
+    'email' => (string) ($current_user['email'] ?? ''),
+];
+
 if ($is_logged_in) {
-    $user_profile_result = $conn->query("SELECT security_question FROM users WHERE id = $current_user_id LIMIT 1");
+    $user_profile_result = $conn->query("SELECT username, nama_lengkap, cashier_id, contact_number, email, security_question FROM users WHERE id = $current_user_id LIMIT 1");
     if ($user_profile_result && $user_profile_result->num_rows === 1) {
         $user_profile_row = $user_profile_result->fetch_assoc();
+        $current_user_profile['username'] = (string) ($user_profile_row['username'] ?? $current_user_profile['username']);
+        $current_user_profile['nama_lengkap'] = (string) ($user_profile_row['nama_lengkap'] ?? $current_user_profile['nama_lengkap']);
+        $current_user_profile['cashier_id'] = (string) ($user_profile_row['cashier_id'] ?? '');
+        $current_user_profile['contact_number'] = (string) ($user_profile_row['contact_number'] ?? '');
+        $current_user_profile['email'] = (string) ($user_profile_row['email'] ?? '');
         $saved_question = trim((string) ($user_profile_row['security_question'] ?? ''));
         if (in_array($saved_question, $security_question_options, true)) {
             $selected_security_question = $saved_question;
@@ -388,6 +428,12 @@ if ($is_logged_in) {
                     <div class="desc">Masuk sebagai admin untuk kelola sistem. Reset password admin via phpMyAdmin.</div>
                 </a>
             <?php } elseif ($is_admin) { ?>
+                <a href="#my-profile" class="menu-card menu-card-profile" data-settings-toggle="my-profile">
+                    <span class="menu-card-icon"><i class="fas fa-id-badge"></i></span>
+                    <div class="title">My Profile</div>
+                    <div class="desc">Kelola identitas akun admin, kontak, email, dan ID Kasir.</div>
+                </a>
+
                 <a href="#user-management" class="menu-card menu-card-profile" data-settings-toggle="user-management">
                     <span class="menu-card-icon"><i class="fas fa-users-cog"></i></span>
                     <div class="title">User Management</div>
@@ -425,6 +471,78 @@ if ($is_logged_in) {
                 </a>
             <?php } ?>
         </div>
+
+        <?php if ($is_logged_in) { ?>
+            <div class="panel settings-panel settings-panel--profile" id="my-profile" data-settings-panel="my-profile" aria-hidden="true">
+                <div class="settings-profile-header">
+                    <div class="settings-profile-avatar" aria-hidden="true">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="settings-profile-heading">
+                        <h5><i class="fas fa-id-badge me-2"></i>My Profile</h5>
+                        <small>Perbarui identitas akun, informasi kontak, dan keamanan profil Anda.</small>
+                    </div>
+                </div>
+
+                <form method="POST" action="settings.php" class="settings-form settings-profile-form">
+                    <input type="hidden" name="action" value="update_my_profile">
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Username</label>
+                            <input class="form-control" value="<?php echo htmlspecialchars($current_user_profile['username']); ?>" readonly>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nama Lengkap</label>
+                            <input class="form-control" name="nama_lengkap" value="<?php echo htmlspecialchars($current_user_profile['nama_lengkap']); ?>" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Nomor Kontak</label>
+                            <input type="text" class="form-control" name="contact_number" inputmode="tel" placeholder="08xxxxxxxxxx" value="<?php echo htmlspecialchars($current_user_profile['contact_number']); ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Alamat Email</label>
+                            <input type="email" class="form-control" name="email" placeholder="nama@email.com" value="<?php echo htmlspecialchars($current_user_profile['email']); ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">ID Kasir</label>
+                            <input type="text" class="form-control" name="cashier_id" inputmode="numeric" maxlength="11" pattern="\d{11}" value="<?php echo htmlspecialchars($current_user_profile['cashier_id']); ?>" <?php echo $is_admin ? '' : 'readonly'; ?>>
+                            <small class="text-muted"><?php echo $is_admin ? 'Administrator dapat memperbarui ID Kasir 11 digit ini.' : 'ID Kasir bersifat tetap dan hanya dapat diubah oleh Administrator.'; ?></small>
+                        </div>
+                    </div>
+
+                    <div class="settings-profile-section" id="profileSecuritySection">
+                        <div class="settings-profile-section-title">Keamanan Akun</div>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Password Baru</label>
+                                <input type="password" class="form-control" name="new_password" placeholder="Opsional">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Pertanyaan Keamanan</label>
+                                <select class="form-select" name="security_question" required>
+                                    <?php foreach ($security_question_options as $question_option) { ?>
+                                        <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $selected_security_question === $question_option ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($question_option); ?>
+                                        </option>
+                                    <?php } ?>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Jawaban Keamanan</label>
+                                <input type="text" class="form-control" name="security_answer" placeholder="Masukkan jawaban keamanan" required>
+                                <small class="text-muted">Jawaban tidak membedakan huruf besar/kecil.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-profile-actions">
+                        <button class="btn btn-profile-outline-save" type="submit">Simpan Profil</button>
+                        <button class="btn btn-profile-outline-security" type="button" data-settings-focus-target="#profileSecuritySection">Keamanan Akun</button>
+                    </div>
+                </form>
+            </div>
+        <?php } ?>
 
         <?php if ($is_admin) { ?>
             <div class="panel settings-panel settings-panel--attendance" id="store-profile" data-settings-panel="store-profile" aria-hidden="true">
@@ -509,43 +627,6 @@ if ($is_logged_in) {
         <?php } ?>
 
         <?php if ($is_cashier) { ?>
-            <div class="panel settings-panel settings-panel--profile" id="my-profile" data-settings-panel="my-profile" aria-hidden="true">
-                <h5><i class="fas fa-id-badge me-2"></i>My Profile</h5>
-                <form method="POST" action="settings.php" class="settings-form settings-profile-form">
-                    <input type="hidden" name="action" value="update_my_profile">
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Username</label>
-                            <input class="form-control" value="<?php echo htmlspecialchars($current_user['username'] ?? ''); ?>" readonly>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nama Lengkap</label>
-                            <input class="form-control" name="nama_lengkap" value="<?php echo htmlspecialchars($current_user['name'] ?? ''); ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Password Baru</label>
-                            <input type="password" class="form-control" name="new_password" placeholder="Opsional">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Pertanyaan Keamanan</label>
-                            <select class="form-select" name="security_question" required>
-                                <?php foreach ($security_question_options as $question_option) { ?>
-                                    <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $selected_security_question === $question_option ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($question_option); ?>
-                                    </option>
-                                <?php } ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Jawaban Keamanan</label>
-                            <input type="text" class="form-control" name="security_answer" placeholder="Masukkan jawaban keamanan" required>
-                            <small class="text-muted">Jawaban tidak membedakan huruf besar/kecil.</small>
-                        </div>
-                    </div>
-                    <button class="btn btn-primary mt-3" type="submit">Simpan Profil</button>
-                </form>
-            </div>
-
             <div class="panel settings-panel settings-panel--attendance" id="attendance" data-settings-panel="attendance" aria-hidden="true">
                 <h5><i class="fas fa-fingerprint me-2"></i>Attendance</h5>
                 <p class="text-muted">Status shift saat ini:

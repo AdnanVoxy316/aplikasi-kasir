@@ -36,6 +36,9 @@ function loginCashierSession(array $cashier) {
         'username' => (string) ($cashier['username'] ?? ''),
         'name' => (string) ($cashier['nama_lengkap'] ?? $cashier['name'] ?? $cashier['username'] ?? 'Cashier'),
         'role' => (string) ($cashier['role'] ?? 'kasir'),
+        'cashier_id' => (string) ($cashier['cashier_id'] ?? ''),
+        'contact_number' => (string) ($cashier['contact_number'] ?? ''),
+        'email' => (string) ($cashier['email'] ?? ''),
     ];
 }
 

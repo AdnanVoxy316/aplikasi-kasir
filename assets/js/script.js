@@ -540,6 +540,28 @@
       });
     });
 
+    settingsRoot
+      .querySelectorAll("[data-settings-focus-target]")
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          const selector = btn.dataset.settingsFocusTarget || "";
+          if (!selector) return;
+
+          const target = settingsRoot.querySelector(selector);
+          if (!target) return;
+
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+
+          const focusable = target.querySelector("input, select, textarea");
+          if (focusable instanceof HTMLElement) {
+            window.setTimeout(() => {
+              focusable.focus();
+            }, 220);
+          }
+        });
+      });
+
     const initialPanelId =
       window.location.hash.replace(/^#/, "") ||
       window.sessionStorage.getItem(storageKey) ||

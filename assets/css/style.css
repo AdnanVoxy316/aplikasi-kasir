@@ -805,6 +805,113 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   border-left-color: rgba(124, 58, 237, 0.68);
 }
 
+.settings-profile-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.settings-profile-avatar {
+  width: 5rem;
+  height: 5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.125rem solid rgba(40, 167, 69, 0.28);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #ffffff, #f1f5f9);
+  color: #28a745;
+  box-shadow: 0 0.625rem 1.5rem rgba(40, 167, 69, 0.12);
+}
+
+.settings-profile-avatar i {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.settings-profile-heading h5 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+}
+
+.settings-profile-heading small {
+  color: #64748b;
+  display: block;
+  margin-top: 0.25rem;
+  line-height: 1.5;
+}
+
+.settings-profile-section {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 0.0625rem solid #e2e8f0;
+}
+
+.settings-profile-section-title {
+  margin-bottom: 0.875rem;
+  color: #1e293b;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.settings-profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.875rem;
+  align-items: center;
+  margin-top: 1.5rem;
+}
+
+.btn-profile-outline-save,
+.btn-profile-outline-security {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 10.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: transparent;
+  font-weight: 700;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.btn-profile-outline-save {
+  border: 0.0625rem solid #16a34a;
+  color: #16a34a;
+}
+
+.btn-profile-outline-save:hover,
+.btn-profile-outline-save:focus {
+  background-color: rgba(22, 163, 74, 0.08);
+  color: #15803d;
+  border-color: #15803d;
+}
+
+.btn-profile-outline-security {
+  border: 0.0625rem solid #2563eb;
+  color: #2563eb;
+}
+
+.btn-profile-outline-security:hover,
+.btn-profile-outline-security:focus {
+  background-color: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
 .panel h5 {
   margin-bottom: 1.25rem;
   font-size: 1rem;
@@ -920,6 +1027,16 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   .panel {
     padding: 1rem;
     border-radius: 0.875rem;
+  }
+
+  .settings-profile-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-profile-outline-save,
+  .btn-profile-outline-security {
+    width: 100%;
   }
 
   #settingsAttendanceForm {
