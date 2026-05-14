@@ -771,6 +771,18 @@
         );
       });
 
+      /* Zero Trust: if leaving forgot-password pane via menu nav, clear session state
+         so user cannot skip verification on re-entry. */
+      if (activePane !== "forgot-password") {
+        window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
+      }
+
+      /* Full-screen recovery mode: hide the nav buttons when forgot-password pane is active. */
+      const securityMenu = profilePanel.querySelector(".settings-security-menu");
+      if (securityMenu) {
+        securityMenu.classList.toggle("is-hidden", activePane === "forgot-password");
+      }
+
       if (persist) {
         window.sessionStorage.setItem(paneStorageKey, activePane);
       }
@@ -807,6 +819,111 @@
         event.preventDefault();
         setView("security");
         setPane(btn.dataset.securityPaneTarget || defaultPane);
+      });
+    });
+
+    /* Kembali in Reset Password / Reset Pertanyaan panes:
+       Returns to the 3-menu security view (reset-password pane). */
+    profilePanel.querySelectorAll('[data-action="reset-password-back"]').forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        setPane("reset-password");
+      });
+    });
+
+    /* Kembali inside Lupa Password (Stage 1 & Stage 2):
+       MUST clear PHP session verification flag, then return to 3-menu security view. */
+    profilePanel.querySelectorAll('[data-action="forgot-back-to-security"]').forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        /* Immediately clear PHP verification session so user cannot skip re-verification on next entry */
+        fetch("settings.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "action=forgot_password_reset_session&ajax=1"
+        }).catch(function() {});
+        /* Then navigate UI */
+        const securityMenu = profilePanel.querySelector(".settings-security-menu");
+        if (securityMenu) securityMenu.classList.remove("is-hidden");
+        setPane("reset-password");
+      });
+    });
+
+    /* Batal Stage 1 (Pilih Pertanyaan + Jawab):
+       Total clear — wipe PHP session + sessionStorage + go to My Profile. */
+    profilePanel.querySelectorAll('[data-action="forgot-batal-stage1"]').forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        /* Immediately clear PHP session verification flag */
+        fetch("settings.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "action=forgot_password_reset_session&ajax=1"
+        }).catch(function() {});
+        /* Clear local inputs and sessionStorage */
+        const paneCard = btn.closest('.settings-security-pane-card');
+        if (paneCard) {
+          paneCard.querySelectorAll('input[type="text"], input[type="password"]').forEach((input) => { input.value = ''; });
+          paneCard.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+          paneCard.querySelectorAll('.alert-danger, .alert-success').forEach((alert) => { alert.remove(); });
+        }
+        window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
+        window.sessionStorage.removeItem("kasirPintarProfileSubview");
+        const securityMenu = profilePanel.querySelector(".settings-security-menu");
+        if (securityMenu) securityMenu.classList.remove("is-hidden");
+        setView("main");
+      });
+    });
+
+    /* Simpan Tanpa Perubahan (Stage 2 Set Password Baru):
+       No DB write. Clears local state + PHP session + returns to My Profile. */
+    profilePanel.querySelectorAll('[data-action="forgot-no-change"]').forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        /* Clear PHP session verification flag — user must re-verify on next entry */
+        fetch("settings.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: "action=forgot_password_reset_session&ajax=1"
+        }).catch(function() {});
+        /* Wipe all local sessionStorage flags */
+        window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
+        window.sessionStorage.removeItem("kasirPintarProfileSubview");
+        /* Clear any inputs in the current form */
+        const paneCard = btn.closest('.settings-security-pane-card');
+        if (paneCard) {
+          paneCard.querySelectorAll('input[type="text"], input[type="password"]').forEach((input) => { input.value = ''; });
+          paneCard.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
+          paneCard.querySelectorAll('.alert-danger, .alert-success').forEach((alert) => { alert.remove(); });
+        }
+        /* Show 3 nav buttons, exit to My Profile */
+        const securityMenu = profilePanel.querySelector(".settings-security-menu");
+        if (securityMenu) securityMenu.classList.remove("is-hidden");
+        setView("main");
+      });
+    });
+
+    /* Batal button for non-forgot-password security panes (Reset Password, Reset Pertanyaan).
+       Clears inputs and exits to main profile. */
+    profilePanel.querySelectorAll('[data-action="security-batal"]').forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        /* Clear all input fields within this pane's form */
+        const paneCard = btn.closest('.settings-security-pane-card');
+        if (paneCard) {
+          paneCard.querySelectorAll('input[type="text"], input[type="password"]').forEach((input) => {
+            input.value = '';
+          });
+          paneCard.querySelectorAll('select').forEach((select) => {
+            /* Reset to first option (usually "-- Pilih --" placeholder) */
+            select.selectedIndex = 0;
+          });
+          paneCard.querySelectorAll('.alert-danger, .alert-success').forEach((alert) => {
+            alert.remove();
+          });
+        }
+        /* Exit to main profile view */
+        setView("main");
       });
     });
 

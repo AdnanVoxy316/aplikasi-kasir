@@ -438,7 +438,14 @@ if ($is_admin) {
                             </div>
 
                             <div class="attendance-actions">
-                                <button type="button" id="attendanceToggleBtn" class="attendance-btn attendance-btn-primary">
+                                <a href="settings.php?open_attendance=1"
+                                   class="btn-attendance-settings"
+                                   id="attendanceSettingsBtn"
+                                   title="Buka pengaturan absensi di Settings">
+                                    <i class="fas fa-cog"></i> Pengaturan
+                                </a>
+                                <button type="button" id="attendanceToggleBtn"
+                                        class="attendance-btn attendance-btn-primary">
                                     <i class="fas fa-fingerprint"></i>
                                     <span id="attendanceToggleLabel"><?php echo (($attendanceToday['status'] ?? 'Pulang') === 'Masuk') ? 'Absen Pulang' : 'Absen Masuk'; ?></span>
                                 </button>

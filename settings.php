@@ -39,8 +39,35 @@ function isSettingsAjaxRequest(): bool
     ) || (isset($_POST['ajax']) && $_POST['ajax'] === '1');
 }
 
+/* Zero Trust: Clear forgot-password verification state on any GET/refresh.
+   User must re-verify on every fresh visit. */
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_SESSION['forgot_password_verified'])) {
+    unset($_SESSION['forgot_password_verified']);
+    unset($_SESSION['forgot_password_verified_user_id']);
+    unset($_SESSION['forgot_password_verified_question_key']);
+}
+
+/* Store security questions in session so JS can safely read them.
+   Used by the "Lupa Password?" forgot-password dropdown. */
+if ($is_logged_in && isset($current_user_security)) {
+    $_SESSION['forgot_security_questions'] = [
+        'primary'   => $current_user_security['primary_question']   ?? '',
+        'secondary' => $current_user_security['secondary_question']  ?? '',
+        'tertiary'  => $current_user_security['tertiary_question']   ?? '',
+    ];
+}
+
 if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'forgot_password_reset_session' && isSettingsAjaxRequest()) {
+        /* Security Reset: wipes verification state so user must re-answer from Stage 1.
+           Accessible to ALL logged-in users (admin & cashier) via AJAX. */
+        unset($_SESSION['forgot_password_verified']);
+        unset($_SESSION['forgot_password_verified_user_id']);
+        unset($_SESSION['forgot_password_verified_question_key']);
+        settingsRespondJson(['success' => true, 'message' => 'Session reset']);
+    }
 
     if ($is_cashier && in_array($action, ['clock_in', 'clock_out'], true) && isSettingsAjaxRequest()) {
         if ($action === 'clock_in') {
@@ -252,53 +279,21 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'reset_primary_security_question') {
-        $security_old_password = $_POST['security_old_password_primary'] ?? '';
-        $primary_security_question = trim($_POST['primary_security_question'] ?? '');
-        $primary_security_answer = trim($_POST['primary_security_answer'] ?? '');
-
-        if ($security_old_password === '') {
-            $error_message = 'Password Lama wajib diisi untuk verifikasi.';
-        } elseif (!in_array($primary_security_question, $security_question_options, true)) {
-            $error_message = 'Pertanyaan keamanan utama tidak valid.';
-        } elseif ($primary_security_answer === '') {
-            $error_message = 'Jawaban pertanyaan keamanan utama wajib diisi.';
-        } else {
-            $current_user_result = $conn->query("SELECT password FROM users WHERE id = $current_user_id LIMIT 1");
-            if (!$current_user_result || $current_user_result->num_rows === 0) {
-                $error_message = 'Pengguna tidak ditemukan.';
-            } else {
-                $current_user_data = $current_user_result->fetch_assoc();
-                $stored_password = (string) ($current_user_data['password'] ?? '');
-                
-                $password_check = verifyUserPasswordCompatibility($security_old_password, $stored_password);
-
-                if (empty($password_check['verified'])) {
-                    $error_message = 'Password Lama tidak sesuai.';
-                } else {
-                    $normalized_answer = mb_strtolower($primary_security_answer, 'UTF-8');
-                    $safe_question = $conn->real_escape_string($primary_security_question);
-                    $safe_answer_hash = $conn->real_escape_string(password_hash($normalized_answer, PASSWORD_DEFAULT));
-
-                    if ($conn->query("UPDATE users SET security_question = '$safe_question', security_answer = '$safe_answer_hash' WHERE id = $current_user_id LIMIT 1")) {
-                        $success_message = 'Pertanyaan keamanan utama berhasil diperbarui.';
-                    } else {
-                        $error_message = 'Gagal memperbarui pertanyaan keamanan utama.';
-                    }
-                }
-            }
-        }
-    }
-
-    if ($action === 'update_additional_security_questions') {
-        $security_old_password = $_POST['security_old_password_additional'] ?? '';
+    if ($action === 'reset_all_security_questions') {
+        $security_old_password = $_POST['security_old_password_all'] ?? '';
+        $primary_question = trim($_POST['primary_security_question'] ?? '');
+        $primary_answer = trim($_POST['primary_security_answer'] ?? '');
         $secondary_question = trim($_POST['security_question_secondary'] ?? '');
         $secondary_answer = trim($_POST['security_answer_secondary'] ?? '');
         $tertiary_question = trim($_POST['security_question_tertiary'] ?? '');
         $tertiary_answer = trim($_POST['security_answer_tertiary'] ?? '');
 
         if ($security_old_password === '') {
-            $error_message = 'Password Lama wajib diisi untuk verifikasi.';
+            $error_message = 'Password Lama wajib diisi.';
+        } elseif (!in_array($primary_question, $security_question_options, true)) {
+            $error_message = 'Pertanyaan 1 tidak valid.';
+        } elseif ($primary_answer === '') {
+            $error_message = 'Jawaban untuk Pertanyaan 1 wajib diisi.';
         } else {
             $current_user_result = $conn->query("SELECT password FROM users WHERE id = $current_user_id LIMIT 1");
             if (!$current_user_result || $current_user_result->num_rows === 0) {
@@ -306,162 +301,176 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $current_user_data = $current_user_result->fetch_assoc();
                 $stored_password = (string) ($current_user_data['password'] ?? '');
-                
                 $password_check = verifyUserPasswordCompatibility($security_old_password, $stored_password);
 
                 if (empty($password_check['verified'])) {
                     $error_message = 'Password Lama tidak sesuai.';
                 } else {
-                    $security_state_result = $conn->query("SELECT security_question, security_question_secondary, security_answer_secondary, security_question_tertiary, security_answer_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
-                    $security_state = $security_state_result && $security_state_result->num_rows === 1
-                        ? $security_state_result->fetch_assoc()
-                        : [];
-
-                    $current_primary_question = trim((string) ($security_state['security_question'] ?? ''));
-                    $current_secondary_question = trim((string) ($security_state['security_question_secondary'] ?? ''));
-                    $current_secondary_answer = trim((string) ($security_state['security_answer_secondary'] ?? ''));
-                    $current_tertiary_question = trim((string) ($security_state['security_question_tertiary'] ?? ''));
-                    $current_tertiary_answer = trim((string) ($security_state['security_answer_tertiary'] ?? ''));
-
-                    $normalized_slots = [];
-                    $question_registry = [];
-                    if ($current_primary_question !== '') {
-                        $question_registry[] = $current_primary_question;
+                    /* Collect all question texts already saved in DB (excluding primary, which is always replaced) */
+                    $saved_result = $conn->query("SELECT security_question_secondary, security_question_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
+                    $saved = $saved_result ? $saved_result->fetch_assoc() : [];
+                    $used_questions = [];
+                    if (!empty($saved['security_question_secondary'])) {
+                        $used_questions[] = trim((string) $saved['security_question_secondary']);
+                    }
+                    if (!empty($saved['security_question_tertiary'])) {
+                        $used_questions[] = trim((string) $saved['security_question_tertiary']);
                     }
 
-                    $slot_payloads = [
-                        'secondary' => [
-                            'question' => $secondary_question,
-                            'answer' => $secondary_answer,
-                            'current_question' => $current_secondary_question,
-                            'current_answer' => $current_secondary_answer,
-                        ],
-                        'tertiary' => [
-                            'question' => $tertiary_question,
-                            'answer' => $tertiary_answer,
-                            'current_question' => $current_tertiary_question,
-                            'current_answer' => $current_tertiary_answer,
-                        ],
-                    ];
-
-                    foreach ($slot_payloads as $slot_name => $slot) {
-                        $question = trim((string) ($slot['question'] ?? ''));
-                        $answer = trim((string) ($slot['answer'] ?? ''));
-                        $current_question = trim((string) ($slot['current_question'] ?? ''));
-                        $current_answer = trim((string) ($slot['current_answer'] ?? ''));
-
-                        if ($question === '' && $answer === '') {
-                            $normalized_slots[$slot_name] = [
-                                'question_sql' => 'NULL',
-                                'answer_sql' => 'NULL',
-                            ];
-                            continue;
+                    /* Validate secondary question */
+                    $sec_q_sql = 'NULL';
+                    $sec_a_sql = 'NULL';
+                    if ($secondary_question !== '') {
+                        if (!in_array($secondary_question, $security_question_options, true)) {
+                            $error_message = 'Pilihan Pertanyaan 2 tidak valid.';
+                        } elseif ($secondary_question === $primary_question) {
+                            $error_message = 'Pertanyaan 2 tidak boleh sama dengan Pertanyaan 1.';
+                        } elseif ($secondary_answer === '') {
+                            $error_message = 'Jawaban untuk Pertanyaan 2 wajib diisi.';
+                        } else {
+                            $sec_q_sql = "'" . $conn->real_escape_string($secondary_question) . "'";
+                            $sec_a_sql = "'" . $conn->real_escape_string(password_hash(mb_strtolower($secondary_answer, 'UTF-8'), PASSWORD_DEFAULT)) . "'";
                         }
-
-                        if (!in_array($question, $security_question_options, true)) {
-                            $error_message = 'Pertanyaan keamanan tambahan tidak valid.';
-                            break;
-                        }
-
-                        if (in_array($question, $question_registry, true) && $question !== $current_question) {
-                            $error_message = 'Setiap pertanyaan keamanan harus berbeda.';
-                            break;
-                        }
-
-                        if ($answer === '') {
-                            if ($question === $current_question && $current_answer !== '') {
-                                $normalized_slots[$slot_name] = [
-                                    'question_sql' => "'" . $conn->real_escape_string($question) . "'",
-                                    'answer_sql' => "'" . $conn->real_escape_string($current_answer) . "'",
-                                ];
-                                $question_registry[] = $question;
-                                continue;
-                            }
-
-                            $error_message = 'Jawaban untuk pertanyaan keamanan tambahan wajib diisi.';
-                            break;
-                        }
-
-                        $normalized_answer = mb_strtolower($answer, 'UTF-8');
-                        $normalized_slots[$slot_name] = [
-                            'question_sql' => "'" . $conn->real_escape_string($question) . "'",
-                            'answer_sql' => "'" . $conn->real_escape_string(password_hash($normalized_answer, PASSWORD_DEFAULT)) . "'",
-                        ];
-                        $question_registry[] = $question;
                     }
-                    }
+
+                    /* Validate tertiary question (only if no error so far) */
+                    $ter_q_sql = 'NULL';
+                    $ter_a_sql = 'NULL';
+                    if ($error_message === '' && $tertiary_question !== '') {
+                        if (!in_array($tertiary_question, $security_question_options, true)) {
+                            $error_message = 'Pilihan Pertanyaan 3 tidak valid.';
+                        } elseif ($tertiary_question === $primary_question) {
+                            $error_message = 'Pertanyaan 3 tidak boleh sama dengan Pertanyaan 1.';
+                        } elseif ($tertiary_question === $secondary_question) {
+                            $error_message = 'Pertanyaan 3 tidak boleh sama dengan Pertanyaan 2.';
+                        } elseif ($tertiary_answer === '') {
+                            $error_message = 'Jawaban untuk Pertanyaan 3 wajib diisi.';
+                        } else {
+                            $ter_q_sql = "'" . $conn->real_escape_string($tertiary_question) . "'";
+                            $ter_a_sql = "'" . $conn->real_escape_string(password_hash(mb_strtolower($tertiary_answer, 'UTF-8'), PASSWORD_DEFAULT)) . "'";
+                        }
                     }
 
                     if ($error_message === '') {
+                        $safe_primary_q = $conn->real_escape_string($primary_question);
+                        $safe_primary_a = $conn->real_escape_string(password_hash(mb_strtolower($primary_answer, 'UTF-8'), PASSWORD_DEFAULT));
                         $query = "UPDATE users SET
-                                    security_question_secondary = " . $normalized_slots['secondary']['question_sql'] . ",
-                                    security_answer_secondary = " . $normalized_slots['secondary']['answer_sql'] . ",
-                                    security_question_tertiary = " . $normalized_slots['tertiary']['question_sql'] . ",
-                                    security_answer_tertiary = " . $normalized_slots['tertiary']['answer_sql'] . "
-                      WHERE id = $current_user_id LIMIT 1";
-
-            if ($conn->query($query)) {
-                $success_message = 'Pertanyaan keamanan tambahan berhasil diperbarui.';
-            } else {
-                $error_message = 'Gagal memperbarui pertanyaan keamanan tambahan.';
+                                    security_question = '$safe_primary_q',
+                                    security_answer = '$safe_primary_a',
+                                    security_question_secondary = $sec_q_sql,
+                                    security_answer_secondary = $sec_a_sql,
+                                    security_question_tertiary = $ter_q_sql,
+                                    security_answer_tertiary = $ter_a_sql
+                                  WHERE id = $current_user_id LIMIT 1";
+                        if ($conn->query($query)) {
+                            $success_message = 'Pertanyaan keamanan berhasil diperbarui.';
+                        } else {
+                            $error_message = 'Gagal menyimpan pertanyaan keamanan.';
+                        }
+                    }
+                }
             }
         }
     }
-    }
 
     if ($action === 'forgot_password_verify_question') {
-        $security_question_answer = trim($_POST['security_question_answer'] ?? '');
-        
-        if ($security_question_answer === '') {
-            $error_message = 'Jawaban pertanyaan keamanan wajib diisi.';
+    $question_key = trim($_POST['forgot_password_question_key'] ?? '');
+    $security_question_answer = trim($_POST['security_question_answer'] ?? '');
+
+    /* ALWAYS clear session on entry to verify action — fresh start on every POST */
+    unset($_SESSION['forgot_password_verified']);
+    unset($_SESSION['forgot_password_verified_user_id']);
+    unset($_SESSION['forgot_password_verified_question_key']);
+
+    if ($question_key === '') {
+        $error_message = 'Silakan pilih pertanyaan keamanan.';
+    } elseif ($security_question_answer === '') {
+        $error_message = 'Jawaban pertanyaan keamanan wajib diisi.';
+    } else {
+        $user_security_result = $conn->query("SELECT security_question, security_answer, security_question_secondary, security_answer_secondary, security_question_tertiary, security_answer_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
+        if (!$user_security_result || $user_security_result->num_rows === 0) {
+            $error_message = 'Pengguna tidak ditemukan.';
         } else {
-            $security_result = $conn->query("SELECT security_question, security_answer FROM users WHERE id = $current_user_id LIMIT 1");
-            if (!$security_result || $security_result->num_rows === 0) {
-                $error_message = 'Pengguna tidak ditemukan.';
+            $user_security = $user_security_result->fetch_assoc();
+            $selected_question = '';
+            $selected_answer_hash = '';
+
+            if ($question_key === 'primary') {
+                $selected_question = trim((string) ($user_security['security_question'] ?? ''));
+                $selected_answer_hash = trim((string) ($user_security['security_answer'] ?? ''));
+            } elseif ($question_key === 'secondary') {
+                $selected_question = trim((string) ($user_security['security_question_secondary'] ?? ''));
+                $selected_answer_hash = trim((string) ($user_security['security_answer_secondary'] ?? ''));
+            } elseif ($question_key === 'tertiary') {
+                $selected_question = trim((string) ($user_security['security_question_tertiary'] ?? ''));
+                $selected_answer_hash = trim((string) ($user_security['security_answer_tertiary'] ?? ''));
+            }
+
+            if ($selected_question === '' || $selected_answer_hash === '') {
+                $error_message = 'Pertanyaan yang dipilih belum diatur di akun Anda.';
             } else {
-                $security_data = $security_result->fetch_assoc();
-                $stored_answer_hash = (string) ($security_data['security_answer'] ?? '');
                 $normalized_input = mb_strtolower($security_question_answer, 'UTF-8');
-                
-                if (empty($stored_answer_hash) || !password_verify($normalized_input, $stored_answer_hash)) {
+                $is_answer_correct = false;
+                if ($selected_answer_hash !== '') {
+                    if (password_get_info($selected_answer_hash)['algo'] !== null) {
+                        $is_answer_correct = password_verify($normalized_input, $selected_answer_hash);
+                    } else {
+                        $is_answer_correct = strcasecmp($selected_answer_hash, $security_question_answer) === 0;
+                    }
+                }
+                if (!$is_answer_correct) {
                     $error_message = 'Jawaban pertanyaan keamanan tidak sesuai.';
                 } else {
+                    /* ONLY set verified on CORRECT answer — fresh correct POST only */
                     $_SESSION['forgot_password_verified'] = true;
                     $_SESSION['forgot_password_verified_user_id'] = $current_user_id;
+                    $_SESSION['forgot_password_verified_question_key'] = $question_key;
                     $success_message = 'Jawaban benar! Silakan atur password baru Anda.';
                 }
             }
         }
     }
+}
 
-    if (
-        $action === 'forgot_password_set_new' &&
-        isset($_SESSION['forgot_password_verified']) &&
-        $_SESSION['forgot_password_verified'] === true &&
-        (int) ($_SESSION['forgot_password_verified_user_id'] ?? 0) === $current_user_id
-    ) {
-        $new_password = $_POST['forgot_password_new'] ?? '';
-        $confirm_password = $_POST['forgot_password_confirm'] ?? '';
-        
-        if ($new_password === '' || $confirm_password === '') {
-            $error_message = 'Password baru dan konfirmasi password wajib diisi.';
-        } elseif (strlen($new_password) < 6) {
-            $error_message = 'Password baru minimal 6 karakter.';
-        } elseif (!hash_equals($new_password, $confirm_password)) {
-            $error_message = 'Konfirmasi password tidak cocok.';
+        /* forgot_password_set_new — verify session FIRST, then process.
+           Session is ONLY cleared after a successful password write.
+           On validation failure the session stays intact so the user can retry. */
+    if ($action === 'forgot_password_set_new') {
+        /* Verify the user passed Stage 1 verification in THIS session */
+        if (
+            empty($_SESSION['forgot_password_verified']) ||
+            $_SESSION['forgot_password_verified'] !== true ||
+            (int) ($_SESSION['forgot_password_verified_user_id'] ?? 0) !== $current_user_id
+        ) {
+            /* Session not verified — force back to Stage 1 */
+            $error_message = 'Sesi verifikasi tidak valid. Silakan jawab pertanyaan keamanan terlebih dahulu.';
         } else {
-            $safe_pass = $conn->real_escape_string(password_hash($new_password, PASSWORD_DEFAULT));
-            if ($conn->query("UPDATE users SET password = '$safe_pass' WHERE id = $current_user_id LIMIT 1")) {
-                unset($_SESSION['forgot_password_verified']);
-                unset($_SESSION['forgot_password_verified_user_id']);
-                $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email, profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
-                if ($fresh && $fresh->num_rows === 1) {
-                    loginCashierSession($fresh->fetch_assoc());
-                    $current_user = getCurrentCashier();
-                }
-                $success_message = 'Password berhasil direset. Silakan login kembali dengan password baru Anda.';
+            $new_password = $_POST['forgot_password_new'] ?? '';
+            $confirm_password = $_POST['forgot_password_confirm'] ?? '';
+
+            if ($new_password === '' || $confirm_password === '') {
+                $error_message = 'Password baru dan konfirmasi password wajib diisi.';
+            } elseif (strlen($new_password) < 6) {
+                $error_message = 'Password baru minimal 6 karakter.';
+            } elseif (!hash_equals($new_password, $confirm_password)) {
+                $error_message = 'Konfirmasi password tidak cocok.';
             } else {
-                $error_message = 'Gagal mereset password.';
+                $safe_pass = $conn->real_escape_string(password_hash($new_password, PASSWORD_DEFAULT));
+                if ($conn->query("UPDATE users SET password = '$safe_pass' WHERE id = $current_user_id LIMIT 1")) {
+                    /* Session cleared AFTER successful password write — user must re-verify next time */
+                    unset($_SESSION['forgot_password_verified']);
+                    unset($_SESSION['forgot_password_verified_user_id']);
+                    unset($_SESSION['forgot_password_verified_question_key']);
+
+                    $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email, profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
+                    if ($fresh && $fresh->num_rows === 1) {
+                        loginCashierSession($fresh->fetch_assoc());
+                        $current_user = getCurrentCashier();
+                    }
+                    $success_message = 'Password berhasil direset. Silakan login kembali dengan password baru Anda.';
+                } else {
+                    $error_message = 'Gagal mereset password.';
+                }
             }
         }
     }
@@ -872,7 +881,6 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                     <div class="settings-security-menu">
                         <button type="button" class="settings-security-menu-btn is-active" data-security-pane-target="reset-password">Reset Password</button>
                         <button type="button" class="settings-security-menu-btn" data-security-pane-target="reset-primary-question">Reset Pertanyaan Keamanan</button>
-                        <button type="button" class="settings-security-menu-btn" data-security-pane-target="additional-questions">Menambahkan Pertanyaan Keamanan</button>
                         <button type="button" class="settings-security-menu-btn settings-security-menu-btn--back" data-return-profile-main="1">Kembali ke Settings</button>
                     </div>
 
@@ -925,95 +933,75 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
 
                     <div class="settings-security-pane" data-security-pane="reset-primary-question">
                         <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="reset-primary-question">
-                            <input type="hidden" name="action" value="reset_primary_security_question">
+                            <input type="hidden" name="action" value="reset_all_security_questions">
                             <div class="settings-security-pane-card">
                                 <div class="settings-security-pane-title">Reset Pertanyaan Keamanan</div>
-                                <div class="settings-security-pane-desc">Atur ulang pertanyaan keamanan utama beserta jawaban barunya.</div>
+                                <div class="settings-security-pane-desc">Kelola semua pertanyaan keamanan Anda. Pastikan pertanyaan utama selalu terisi.</div>
 
                                 <div class="row g-3">
                                     <div class="col-md-12">
                                         <label class="form-label">Password Lama <span class="text-danger">*</span></label>
                                         <div class="password-input-wrap">
-                                            <input type="password" class="form-control password-toggle-input" name="security_old_password_primary" id="sec_old_pass_primary" placeholder="Masukkan password Anda untuk verifikasi" autocomplete="current-password" required>
+                                            <input type="password" class="form-control password-toggle-input" name="security_old_password_all" id="sec_old_pass_primary" placeholder="Masukkan password Anda untuk verifikasi" autocomplete="current-password" required>
                                             <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_old_pass_primary">
                                                 <i class="fas fa-eye"></i>
                                             </button>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Pertanyaan Keamanan Utama</label>
+                                        <label class="form-label">Pertanyaan 1 (Utama) <span class="text-danger">*</span></label>
                                         <select class="form-select" name="primary_security_question" required>
-                                            <?php foreach ($security_question_options as $question_option) { ?>
-                                                <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $current_user_security['primary_question'] === $question_option ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($question_option); ?>
+                                            <?php foreach ($security_question_options as $qo): ?>
+                                                <option value="<?php echo htmlspecialchars($qo); ?>" <?php echo ($current_user_security['primary_question'] ?? '') === $qo ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($qo); ?>
                                                 </option>
-                                            <?php } ?>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Jawaban Baru</label>
-                                        <input type="text" class="form-control" name="primary_security_answer" placeholder="Ketik jawaban baru Anda" required>
-                                    </div>
-                                </div>
-
-                                <div class="settings-profile-actions settings-profile-actions--security">
-                                    <button class="btn btn-profile-outline-save" type="submit">Simpan Pertanyaan Utama</button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-
-                    <div class="settings-security-pane" data-security-pane="additional-questions">
-                        <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="additional-questions">
-                            <input type="hidden" name="action" value="update_additional_security_questions">
-                            <div class="settings-security-pane-card">
-                                <div class="settings-security-pane-title">Menambahkan Pertanyaan Keamanan</div>
-                                <div class="settings-security-pane-desc">Kelola pertanyaan keamanan tambahan agar akun memiliki hingga 3 lapis verifikasi.</div>
-
-                                <div class="row g-3">
-                                    <div class="col-md-12">
-                                        <label class="form-label">Password Lama <span class="text-danger">*</span></label>
-                                        <div class="password-input-wrap">
-                                            <input type="password" class="form-control password-toggle-input" name="security_old_password_additional" id="sec_old_pass_additional" placeholder="Masukkan password Anda untuk verifikasi" autocomplete="current-password" required>
-                                            <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_old_pass_additional">
-                                                <i class="fas fa-eye"></i>
-                                            </button>
-                                        </div>
+                                        <label class="form-label">Jawaban 1 <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" name="primary_security_answer" placeholder="Ketik jawaban baru" required>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Pertanyaan Keamanan 2</label>
+                                        <label class="form-label">Pertanyaan 2 <span class="settings-label-optional">(Opsional)</span></label>
                                         <select class="form-select" name="security_question_secondary">
                                             <option value="">Tidak digunakan</option>
-                                            <?php foreach ($security_question_options as $question_option) { ?>
-                                                <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $current_user_security['secondary_question'] === $question_option ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($question_option); ?>
+                                            <?php foreach ($security_question_options as $qo): ?>
+                                                <option value="<?php echo htmlspecialchars($qo); ?>" <?php echo ($current_user_security['secondary_question'] ?? '') === $qo ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($qo); ?>
                                                 </option>
-                                            <?php } ?>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Jawaban Pertanyaan 2</label>
-                                        <input type="text" class="form-control" name="security_answer_secondary" placeholder="Isi jika ingin menambah/memperbarui">
+                                        <label class="form-label">Jawaban 2 <span class="settings-label-optional">(Opsional)</span></label>
+                                        <input type="text" class="form-control" name="security_answer_secondary" placeholder="Isi jika ingin menambah">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Pertanyaan Keamanan 3</label>
+                                        <label class="form-label">Pertanyaan 3 <span class="settings-label-optional">(Opsional)</span></label>
                                         <select class="form-select" name="security_question_tertiary">
                                             <option value="">Tidak digunakan</option>
-                                            <?php foreach ($security_question_options as $question_option) { ?>
-                                                <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $current_user_security['tertiary_question'] === $question_option ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($question_option); ?>
+                                            <?php foreach ($security_question_options as $qo): ?>
+                                                <option value="<?php echo htmlspecialchars($qo); ?>" <?php echo ($current_user_security['tertiary_question'] ?? '') === $qo ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($qo); ?>
                                                 </option>
-                                            <?php } ?>
+                                            <?php endforeach; ?>
                                         </select>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">Jawaban Pertanyaan 3</label>
-                                        <input type="text" class="form-control" name="security_answer_tertiary" placeholder="Isi jika ingin menambah/memperbarui">
+                                        <label class="form-label">Jawaban 3 <span class="settings-label-optional">(Opsional)</span></label>
+                                        <input type="text" class="form-control" name="security_answer_tertiary" placeholder="Isi jika ingin menambah">
                                     </div>
                                 </div>
 
                                 <div class="settings-profile-actions settings-profile-actions--security">
-                                    <button class="btn btn-profile-outline-save" type="submit">Simpan Pertanyaan Tambahan</button>
+                                    <button class="btn btn-profile-outline-security" type="button" data-action="reset-password-back">
+                                        <i class="fas fa-arrow-left me-1"></i> Kembali
+                                    </button>
+                                    <button class="btn btn-profile-outline-batal" type="button" data-action="security-batal">
+                                        <i class="fas fa-times me-1"></i> Batal
+                                    </button>
+                                    <button class="btn btn-profile-outline-save" type="submit">Simpan Semua Pertanyaan</button>
                                 </div>
                             </div>
                         </form>
@@ -1024,40 +1012,111 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                             <div class="settings-security-pane-header-row">
                                 <div>
                                     <div class="settings-security-pane-title">Lupa Password?</div>
-                                    <div class="settings-security-pane-desc">Jawab pertanyaan keamanan Anda untuk mengatur ulang password.</div>
+                                    <div class="settings-security-pane-desc">Pilih pertanyaan keamanan, jawab dengan benar, lalu atur password baru.</div>
                                 </div>
-                                <button type="button" class="btn btn-profile-outline-security settings-security-back-btn" data-security-pane-target="reset-password">
-                                    <i class="fas fa-arrow-left me-1"></i> Kembali
-                                </button>
                             </div>
 
-                            <div id="forgotPasswordStage1" <?php echo $forgot_password_verified_for_current_user ? 'style="display: none;"' : ''; ?>>
-                                <?php if (empty($current_user_security['has_primary_question'])) { ?>
-                                    <div class="settings-security-empty-state">
-                                        <i class="fas fa-shield-halved"></i>
-                                        <p>Pertanyaan keamanan utama belum diatur. Silakan atur pertanyaan keamanan terlebih dahulu di menu <strong>"Reset Pertanyaan Keamanan"</strong>.</p>
+                            <?php if (empty($current_user_security['has_primary_question'])) { ?>
+                                <div class="settings-security-empty-state">
+                                    <i class="fas fa-shield-halved"></i>
+                                    <p>Pertanyaan keamanan utama belum diatur. Silakan atur pertanyaan keamanan terlebih dahulu di menu <strong>"Reset Pertanyaan Keamanan"</strong>.</p>
+                                </div>
+                            <?php } else { ?>
+
+                                <?php
+                                /* Build dropdown options with question TEXT as the display label. */
+                                $forgot_questions = [];
+                                $qmap = [
+                                    'primary'   => $current_user_security['primary_question']   ?? '',
+                                    'secondary' => $current_user_security['secondary_question']  ?? '',
+                                    'tertiary'  => $current_user_security['tertiary_question']   ?? '',
+                                ];
+                                foreach ($qmap as $key => $text) {
+                                    if (!empty($text)) {
+                                        $forgot_questions[] = ['key' => $key, 'text' => $text];
+                                    }
+                                }
+                                ?>
+
+                                <?php if (!$forgot_password_verified_for_current_user) { ?>
+                                <!-- STAGE 1: Select question + Answer -->
+                                <div id="forgotPasswordStage1" class="forgot-password-stage">
+                                    <?php if (count($forgot_questions) === 0) { ?>
+                                        <div class="settings-security-empty-state">
+                                            <i class="fas fa-shield-halved"></i>
+                                            <p>Belum ada pertanyaan keamanan yang diatur di akun Anda.</p>
+                                        </div>
+                                    <?php } else { ?>
+                                        <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="forgot-password">
+                                            <input type="hidden" name="action" value="forgot_password_verify_question">
+
+                                            <div class="row g-3">
+                                                <div class="col-md-12">
+                                                    <label class="form-label" for="forgot_select_question">Pilih Pertanyaan Keamanan</label>
+                                                    <select class="form-select" id="forgot_select_question" name="forgot_password_question_key" required>
+                                                        <option value="">-- Pilih Pertanyaan --</option>
+                                                        <?php foreach ($forgot_questions as $fq): ?>
+                                                            <option value="<?php echo htmlspecialchars($fq['key']); ?>">
+                                                                <?php echo htmlspecialchars($fq['text']); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-12">
+                                                    <label class="form-label" for="forgot_answer_input">Jawaban Anda</label>
+                                                    <div class="password-input-wrap">
+                                                        <input type="password" class="form-control password-toggle-input" name="security_question_answer" id="forgot_answer_input" placeholder="Ketik jawaban Anda" autocomplete="off" required>
+                                                        <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan jawaban" data-toggle-target="forgot_answer_input">
+                                                            <i class="fas fa-eye"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <?php if ($error_message !== '' && isset($_POST['action']) && $_POST['action'] === 'forgot_password_verify_question'): ?>
+                                                <div class="alert alert-danger py-2 mt-3 mb-0" role="alert" style="font-size:0.875rem; border-radius: 0.625rem; border: 1px solid rgba(220,53,69,0.3); background-color: rgba(220,53,69,0.05);">
+                                                    <i class="fas fa-exclamation-circle me-1"></i> <?php echo htmlspecialchars($error_message); ?>
+                                                </div>
+                                            <?php endif; ?>
+
+                                            <div class="settings-profile-actions settings-profile-actions--security">
+                                                <button class="btn btn-profile-outline-security" type="button" data-action="forgot-back-to-security">
+                                                    <i class="fas fa-arrow-left me-1"></i> Kembali
+                                                </button>
+                                                <button class="btn btn-profile-outline-batal" type="button" data-action="forgot-batal-stage1">
+                                                    <i class="fas fa-times me-1"></i> Batal
+                                                </button>
+                                                <button class="btn btn-profile-outline-save" type="submit">Verifikasi Jawaban</button>
+                                            </div>
+                                        </form>
+                                    <?php } ?>
+                                </div>
+                                <?php } ?>
+
+                                <?php if ($forgot_password_verified_for_current_user) { ?>
+                                <!-- STAGE 2: Set new password -->
+                                <div id="forgotPasswordStage2" class="forgot-password-stage">
+                                    <div class="alert alert-success py-2 mb-3" role="alert" style="font-size:0.875rem; border-radius: 0.625rem; border: 1px solid rgba(16,185,129,0.3); background-color: rgba(16,185,129,0.06);">
+                                        <i class="fas fa-check-circle me-1"></i> Verifikasi berhasil! Silakan atur password baru Anda.
                                     </div>
-                                <?php } else { ?>
                                     <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="forgot-password">
-                                        <input type="hidden" name="action" value="forgot_password_verify_question">
+                                        <input type="hidden" name="action" value="forgot_password_set_new">
 
                                         <div class="row g-3">
                                             <div class="col-md-12">
-                                                <label class="form-label">Pertanyaan Keamanan Anda</label>
-                                                <div class="form-control-static">
-                                                    <?php
-                                                    $primary_q = !empty($current_user_security['has_primary_question'])
-                                                        ? ($current_user_security['primary_question'] ?? '')
-                                                        : 'Belum ada pertanyaan keamanan utama yang disimpan';
-                                                    echo htmlspecialchars($primary_q);
-                                                    ?>
+                                                <label class="form-label">Password Baru</label>
+                                                <div class="password-input-wrap">
+                                                    <input type="password" class="form-control password-toggle-input" name="forgot_password_new" id="forgot_new_pass_input" placeholder="Minimal 6 karakter" autocomplete="new-password" required>
+                                                    <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="forgot_new_pass_input">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
                                                 </div>
                                             </div>
                                             <div class="col-md-12">
-                                                <label class="form-label">Jawaban Anda</label>
+                                                <label class="form-label">Konfirmasi Password Baru</label>
                                                 <div class="password-input-wrap">
-                                                    <input type="password" class="form-control password-toggle-input" name="security_question_answer" id="forgot_answer_input" placeholder="Ketik jawaban Anda" autocomplete="off" required>
-                                                    <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan jawaban" data-toggle-target="forgot_answer_input">
+                                                    <input type="password" class="form-control password-toggle-input" name="forgot_password_confirm" id="forgot_confirm_pass_input" placeholder="Ketik ulang password baru" autocomplete="new-password" required>
+                                                    <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="forgot_confirm_pass_input">
                                                         <i class="fas fa-eye"></i>
                                                     </button>
                                                 </div>
@@ -1065,42 +1124,19 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                                         </div>
 
                                         <div class="settings-profile-actions settings-profile-actions--security">
-                                            <button class="btn btn-profile-outline-save" type="submit">Verifikasi Jawaban</button>
+                                            <button class="btn btn-profile-outline-security" type="button" data-action="forgot-back-to-security">
+                                                <i class="fas fa-arrow-left me-1"></i> Kembali
+                                            </button>
+                                            <button class="btn btn-profile-outline-batal" type="button" data-action="forgot-no-change">
+                                                Simpan Tanpa Perubahan
+                                            </button>
+                                            <button class="btn btn-profile-outline-save" type="submit">Simpan Password Baru</button>
                                         </div>
                                     </form>
+                                </div>
                                 <?php } ?>
-                            </div>
 
-                            <div id="forgotPasswordStage2" <?php echo $forgot_password_verified_for_current_user ? '' : 'style="display: none;"'; ?>>
-                                <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="forgot-password">
-                                    <input type="hidden" name="action" value="forgot_password_set_new">
-
-                                    <div class="row g-3">
-                                        <div class="col-md-12">
-                                            <label class="form-label">Password Baru</label>
-                                            <div class="password-input-wrap">
-                                                <input type="password" class="form-control password-toggle-input" name="forgot_password_new" id="forgot_new_pass_input" placeholder="Minimal 6 karakter" autocomplete="new-password" required>
-                                                <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="forgot_new_pass_input">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-12">
-                                            <label class="form-label">Konfirmasi Password Baru</label>
-                                            <div class="password-input-wrap">
-                                                <input type="password" class="form-control password-toggle-input" name="forgot_password_confirm" id="forgot_confirm_pass_input" placeholder="Ketik ulang password baru" autocomplete="new-password" required>
-                                                <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="forgot_confirm_pass_input">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div class="settings-profile-actions settings-profile-actions--security">
-                                        <button class="btn btn-profile-outline-save" type="submit">Simpan Password Baru</button>
-                                    </div>
-                                </form>
-                            </div>
+                            <?php } ?>
                         </div>
                     </div>
                 </div>
@@ -1220,6 +1256,23 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
     </div>
 </div>
 
+<?php
+    /* Inline JS: write security questions into sessionStorage before script.js runs.
+       This ensures the question dropdown display always has fresh data,
+       even after a hard refresh or navigation via browser back. */
+    $js_questions = [
+        'primary'   => $current_user_security['primary_question']   ?? '',
+        'secondary' => $current_user_security['secondary_question'] ?? '',
+        'tertiary'  => $current_user_security['tertiary_question']  ?? '',
+    ];
+?>
+<script>
+window.addEventListener("DOMContentLoaded", function () {
+    try {
+        sessionStorage.setItem("kasirPintarSecurityQuestions", <?php echo json_encode($js_questions); ?>);
+    } catch (e) {}
+});
+</script>
 <script src="assets/js/script.js"></script>
 </body>
 </html>

@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(php -l settings.php)"
+      "Bash(php -l settings.php)",
+      "Bash(findstr /n \"primary_question\" settings.php)",
+      "Bash(findstr /n \"primary_question\" assets\\\\js\\\\script.js)",
+      "Bash(php -l \"c:/xampp/htdocs/aplikasi-kasir-copy/settings.php\")"
     ]
   }
 }
