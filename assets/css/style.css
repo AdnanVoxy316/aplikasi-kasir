@@ -1003,6 +1003,12 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   color: #2563eb;
 }
 
+.btn-profile-outline-save:focus,
+.btn-profile-outline-security:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.5);
+  outline-offset: 2px;
+}
+
 .btn-profile-outline-security:hover,
 .btn-profile-outline-security:focus {
   background-color: #2563eb;
@@ -1061,11 +1067,141 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   background: #f8fafc;
 }
 
+.settings-security-forgot-link {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.875rem;
+}
+
+.settings-security-forgot-btn {
+  min-width: auto;
+  padding-inline: 1rem;
+}
+
+.form-control-static {
+  width: 100%;
+  min-height: 2.625rem;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  border: 0.0625rem solid #e5e7eb;
+  border-radius: 0.625rem;
+  background-color: #ffffff;
+  color: #111827;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
 .settings-security-pane-title {
   color: #0f172a;
   font-size: 1rem;
   font-weight: 800;
   margin-bottom: 0.25rem;
+}
+
+.settings-security-pane-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.settings-security-back-btn {
+  min-width: auto;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+  margin-top: 0.25rem;
+}
+
+.settings-security-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1rem;
+  color: #64748b;
+  gap: 0.875rem;
+}
+
+.settings-security-empty-state i {
+  font-size: 2.5rem;
+  color: #94a3b8;
+}
+
+.settings-security-empty-state p {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  max-width: 28rem;
+  color: #475569;
+}
+
+/* Password toggle input wrapper */
+.password-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-input-wrap .form-control {
+  padding-right: 2.75rem;
+  width: 100%;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 0.625rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  padding: 0.25rem;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: color 0.2s ease;
+  z-index: 2;
+  line-height: 1;
+}
+
+.password-toggle-btn:hover {
+  color: #2563eb;
+}
+
+.password-toggle-btn.is-visible {
+  color: #2563eb;
+}
+
+/* Header profile sync indicator */
+.header-profile-avatar-sync {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  opacity: 0;
+  background: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.header-profile-avatar.is-syncing .header-profile-avatar-sync {
+  opacity: 1;
+}
+
+.header-profile-avatar-sync i {
+  font-size: 0.875rem;
+  color: #059669;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 .settings-security-pane-desc {

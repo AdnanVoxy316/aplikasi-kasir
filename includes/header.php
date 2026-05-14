@@ -6,7 +6,10 @@ $header_user_photo_default = true;
 
 if ($is_logged_in_header) {
     $current_cashier = function_exists('getCurrentCashier') ? getCurrentCashier() : null;
-    $header_user_photo = (string) ($current_cashier['profile_photo'] ?? '');
+    /* Use last_profile_photo from session for immediate sync, otherwise use current cashier photo */
+    $header_user_photo = !empty($_SESSION['last_profile_photo'])
+        ? (string) $_SESSION['last_profile_photo']
+        : (string) ($current_cashier['profile_photo'] ?? '');
     $header_user_photo_default = $header_user_photo === '';
 }
 ?>
@@ -27,9 +30,13 @@ if ($is_logged_in_header) {
                 <span class="header-profile-avatar" aria-hidden="true" id="headerProfileAvatarContainer">
                     <?php if ($header_user_photo_default) { ?>
                         <i class="fas fa-user"></i>
-                    <?php } else { ?>
-                        <img src="assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo time(); ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
+                    <?php } else {
+                        $photo_path = __DIR__ . '/../assets/img/' . $header_user_photo;
+                        $photo_t = is_file($photo_path) ? filemtime($photo_path) : time();
+                    ?>
+                        <img src="assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo $photo_t; ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
                     <?php } ?>
+                    <span class="header-profile-avatar-sync" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
                 </span>
                 <span><?php echo htmlspecialchars($header_user_name); ?></span>
             </div>

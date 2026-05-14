@@ -585,27 +585,113 @@
   document.addEventListener("DOMContentLoaded", bindSettingsPanelToggle);
 })();
 
+/* --- GLOBAL PASSWORD TOGGLE VISIBILITY --- */
+(function globalPasswordToggleLogic() {
+  function bindPasswordToggle() {
+    document.querySelectorAll(".password-toggle-btn").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        var targetId = btn.dataset.toggleTarget;
+        if (!targetId) return;
+
+        var input = document.getElementById(targetId);
+        if (!input) return;
+
+        var isPassword = input.type === "password";
+        input.type = isPassword ? "text" : "password";
+
+        var icon = btn.querySelector("i");
+        if (icon) {
+          icon.className = isPassword ? "fas fa-eye-slash" : "fas fa-eye";
+          btn.classList.toggle("is-visible", !isPassword);
+        }
+
+        btn.setAttribute("aria-label", isPassword ? "Sembunyikan password" : "Tampilkan password");
+        input.focus();
+      });
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", bindPasswordToggle);
+})();
+
 /* --- SETTINGS PROFILE PHOTO PREVIEW LOGIC --- */
 (function settingsProfilePhotoLogic() {
   function bindSettingsProfilePhotoLogic() {
-    const input = document.getElementById("profilePhotoInput");
-    const preview = document.getElementById("settingsProfileAvatarPreview");
-    const placeholder = document.getElementById(
+    var input = document.getElementById("profilePhotoInput");
+    var preview = document.getElementById("settingsProfileAvatarPreview");
+    var placeholder = document.getElementById(
       "settingsProfileAvatarPlaceholder",
+    );
+    var headerAvatarContainer = document.getElementById(
+      "headerProfileAvatarContainer",
     );
 
     if (!(input instanceof HTMLInputElement) || !preview || !placeholder)
       return;
 
-    input.addEventListener("change", () => {
-      const file = input.files && input.files[0] ? input.files[0] : null;
+    function syncHeaderAvatar(imageSrc) {
+      if (!headerAvatarContainer) return;
+
+      var safeSrc = String(imageSrc || "").trim();
+      var existingImage = headerAvatarContainer.querySelector(
+        "#headerProfileAvatarImage",
+      );
+      var existingIcon = headerAvatarContainer.querySelector("i.fas");
+
+      /* Show syncing animation */
+      headerAvatarContainer.classList.add("is-syncing");
+
+      if (safeSrc === "") {
+        if (existingImage) existingImage.remove();
+        if (!existingIcon) {
+          var fallbackIcon = document.createElement("i");
+          fallbackIcon.className = "fas fa-user";
+          fallbackIcon.setAttribute("aria-hidden", "true");
+          headerAvatarContainer.insertBefore(fallbackIcon, headerAvatarContainer.querySelector(".header-profile-avatar-sync"));
+        }
+        headerAvatarContainer.classList.remove("is-syncing");
+        return;
+      }
+
+      if (existingIcon) existingIcon.remove();
+
+      var avatarImage =
+        existingImage instanceof HTMLImageElement
+          ? existingImage
+          : document.createElement("img");
+
+      avatarImage.id = "headerProfileAvatarImage";
+      avatarImage.className = "header-profile-avatar-image";
+      avatarImage.alt = "Profile";
+      avatarImage.src = safeSrc;
+
+      avatarImage.addEventListener("load", function() {
+        headerAvatarContainer.classList.remove("is-syncing");
+      }, { once: true });
+      avatarImage.addEventListener("error", function() {
+        headerAvatarContainer.classList.remove("is-syncing");
+      }, { once: true });
+
+      if (existingImage) {
+        existingImage.src = safeSrc;
+        headerAvatarContainer.classList.remove("is-syncing");
+      } else {
+        var syncIndicator = headerAvatarContainer.querySelector(".header-profile-avatar-sync");
+        headerAvatarContainer.insertBefore(avatarImage, syncIndicator);
+      }
+    }
+
+    input.addEventListener("change", function() {
+      var file = input.files && input.files[0] ? input.files[0] : null;
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        preview.src = String(event.target?.result || "");
+      var reader = new FileReader();
+      reader.onload = function(event) {
+        var imageSrc = String(event.target && event.target.result || "");
+        preview.src = imageSrc;
         preview.classList.remove("hidden");
         placeholder.classList.add("hidden");
+        syncHeaderAvatar(imageSrc);
       };
       reader.readAsDataURL(file);
     });
@@ -712,6 +798,15 @@
         event.preventDefault();
         setView("security");
         setPane(button.dataset.securityPaneTarget || defaultPane);
+      });
+    });
+
+    /* Also bind back buttons inside forgot-password pane */
+    profilePanel.querySelectorAll(".settings-security-back-btn").forEach((btn) => {
+      btn.addEventListener("click", (event) => {
+        event.preventDefault();
+        setView("security");
+        setPane(btn.dataset.securityPaneTarget || defaultPane);
       });
     });
 

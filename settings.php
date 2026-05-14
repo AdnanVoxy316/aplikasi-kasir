@@ -21,6 +21,8 @@ $security_question_options = [
 $success_message = '';
 $error_message = '';
 
+$forgot_password_verified_for_current_user = false;
+
 function settingsRespondJson(array $payload, int $statusCode = 200): void
 {
     http_response_code($statusCode);
@@ -191,8 +193,14 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($conn->query($query)) {
                     $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email, profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
                     if ($fresh && $fresh->num_rows === 1) {
-                        loginCashierSession($fresh->fetch_assoc());
+                        $fresh_row = $fresh->fetch_assoc();
+                        loginCashierSession($fresh_row);
                         $current_user = getCurrentCashier();
+                        /* Also write new profile photo to sessionStorage so header updates immediately */
+                        $new_photo = (string) ($fresh_row['profile_photo'] ?? '');
+                        if ($new_photo !== '') {
+                            $_SESSION['last_profile_photo'] = $new_photo;
+                        }
                     }
                     $success_message = 'Profil berhasil diperbarui.';
                 } else {
@@ -223,7 +231,9 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $current_user_data = $current_user_result->fetch_assoc();
                 $stored_password = (string) ($current_user_data['password'] ?? '');
                 
-                if (!password_verify($security_old_password, $stored_password)) {
+                $password_check = verifyUserPasswordCompatibility($security_old_password, $stored_password);
+
+                if (empty($password_check['verified'])) {
                     $error_message = 'Password Lama tidak sesuai.';
                 } else {
                     $safe_pass = $conn->real_escape_string(password_hash($security_new_password, PASSWORD_DEFAULT));
@@ -261,7 +271,9 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $current_user_data = $current_user_result->fetch_assoc();
                 $stored_password = (string) ($current_user_data['password'] ?? '');
                 
-                if (!password_verify($security_old_password, $stored_password)) {
+                $password_check = verifyUserPasswordCompatibility($security_old_password, $stored_password);
+
+                if (empty($password_check['verified'])) {
                     $error_message = 'Password Lama tidak sesuai.';
                 } else {
                     $normalized_answer = mb_strtolower($primary_security_answer, 'UTF-8');
@@ -295,7 +307,9 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $current_user_data = $current_user_result->fetch_assoc();
                 $stored_password = (string) ($current_user_data['password'] ?? '');
                 
-                if (!password_verify($security_old_password, $stored_password)) {
+                $password_check = verifyUserPasswordCompatibility($security_old_password, $stored_password);
+
+                if (empty($password_check['verified'])) {
                     $error_message = 'Password Lama tidak sesuai.';
                 } else {
                     $security_state_result = $conn->query("SELECT security_question, security_question_secondary, security_answer_secondary, security_question_tertiary, security_answer_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
@@ -375,6 +389,8 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         ];
                         $question_registry[] = $question;
                     }
+                    }
+                    }
 
                     if ($error_message === '') {
                         $query = "UPDATE users SET
@@ -390,6 +406,7 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error_message = 'Gagal memperbarui pertanyaan keamanan tambahan.';
             }
         }
+    }
     }
 
     if ($action === 'forgot_password_verify_question') {
@@ -417,7 +434,12 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($action === 'forgot_password_set_new' && isset($_SESSION['forgot_password_verified']) && $_SESSION['forgot_password_verified'] === true) {
+    if (
+        $action === 'forgot_password_set_new' &&
+        isset($_SESSION['forgot_password_verified']) &&
+        $_SESSION['forgot_password_verified'] === true &&
+        (int) ($_SESSION['forgot_password_verified_user_id'] ?? 0) === $current_user_id
+    ) {
         $new_password = $_POST['forgot_password_new'] ?? '';
         $confirm_password = $_POST['forgot_password_confirm'] ?? '';
         
@@ -646,6 +668,7 @@ $current_user_security = [
     'primary_question' => $security_question_options[0],
     'secondary_question' => '',
     'tertiary_question' => '',
+    'has_primary_question' => false,
 ];
 
 if ($is_logged_in) {
@@ -661,6 +684,7 @@ if ($is_logged_in) {
         $saved_question = trim((string) ($user_profile_row['security_question'] ?? ''));
         if (in_array($saved_question, $security_question_options, true)) {
             $selected_security_question = $saved_question;
+            $current_user_security['has_primary_question'] = true;
         }
         $current_user_security['primary_question'] = $selected_security_question;
 
@@ -675,6 +699,9 @@ if ($is_logged_in) {
         }
     }
 }
+
+$forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_verified'])
+    && (int) ($_SESSION['forgot_password_verified_user_id'] ?? 0) === $current_user_id;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -781,7 +808,7 @@ if ($is_logged_in) {
 
                         <div class="settings-profile-heading settings-profile-heading--top">
                             <h5>My Profile</h5>
-                            <small>Perbarui identitas akun, informasi kontak, dan keamanan profil.</small>
+                            <small>Perbarui identitas akun, informasi kontak, dan foto profil Anda.</small>
                         </div>
 
                         <div class="settings-profile-photo-block">
@@ -859,15 +886,30 @@ if ($is_logged_in) {
                                 <div class="row g-3">
                                     <div class="col-md-12">
                                         <label class="form-label">Password Lama <span class="text-danger">*</span></label>
-                                        <input type="password" class="form-control" name="security_old_password" placeholder="Masukkan password lama Anda" required>
+                                        <div class="password-input-wrap">
+                                            <input type="password" class="form-control password-toggle-input" name="security_old_password" id="sec_old_pass" placeholder="Masukkan password lama Anda" autocomplete="current-password" required>
+                                            <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_old_pass">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Password Baru</label>
-                                        <input type="password" class="form-control" name="security_new_password" required>
+                                        <div class="password-input-wrap">
+                                            <input type="password" class="form-control password-toggle-input" name="security_new_password" id="sec_new_pass" placeholder="Minimal 6 karakter" autocomplete="new-password" required>
+                                            <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_new_pass">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Konfirmasi Password Baru</label>
-                                        <input type="password" class="form-control" name="security_confirm_password" required>
+                                        <div class="password-input-wrap">
+                                            <input type="password" class="form-control password-toggle-input" name="security_confirm_password" id="sec_confirm_pass" placeholder="Ketik ulang password baru" autocomplete="new-password" required>
+                                            <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_confirm_pass">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -877,7 +919,7 @@ if ($is_logged_in) {
                             </div>
                         </form>
                         <div class="settings-security-forgot-link">
-                            <button type="button" class="settings-security-forgot-btn" data-security-pane-target="forgot-password">Lupa Password?</button>
+                            <button type="button" class="btn btn-profile-outline-security settings-security-forgot-btn" data-security-pane-target="forgot-password">Lupa Password?</button>
                         </div>
                     </div>
 
@@ -891,7 +933,12 @@ if ($is_logged_in) {
                                 <div class="row g-3">
                                     <div class="col-md-12">
                                         <label class="form-label">Password Lama <span class="text-danger">*</span></label>
-                                        <input type="password" class="form-control" name="security_old_password_primary" placeholder="Masukkan password Anda untuk verifikasi" required>
+                                        <div class="password-input-wrap">
+                                            <input type="password" class="form-control password-toggle-input" name="security_old_password_primary" id="sec_old_pass_primary" placeholder="Masukkan password Anda untuk verifikasi" autocomplete="current-password" required>
+                                            <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_old_pass_primary">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Pertanyaan Keamanan Utama</label>
@@ -905,7 +952,7 @@ if ($is_logged_in) {
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Jawaban Baru</label>
-                                        <input type="text" class="form-control" name="primary_security_answer" required>
+                                        <input type="text" class="form-control" name="primary_security_answer" placeholder="Ketik jawaban baru Anda" required>
                                     </div>
                                 </div>
 
@@ -926,7 +973,12 @@ if ($is_logged_in) {
                                 <div class="row g-3">
                                     <div class="col-md-12">
                                         <label class="form-label">Password Lama <span class="text-danger">*</span></label>
-                                        <input type="password" class="form-control" name="security_old_password_additional" placeholder="Masukkan password Anda untuk verifikasi" required>
+                                        <div class="password-input-wrap">
+                                            <input type="password" class="form-control password-toggle-input" name="security_old_password_additional" id="sec_old_pass_additional" placeholder="Masukkan password Anda untuk verifikasi" autocomplete="current-password" required>
+                                            <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="sec_old_pass_additional">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Pertanyaan Keamanan 2</label>
@@ -969,47 +1021,78 @@ if ($is_logged_in) {
 
                     <div class="settings-security-pane" data-security-pane="forgot-password">
                         <div class="settings-security-pane-card">
-                            <div class="settings-security-pane-title">Lupa Password?</div>
-                            <div class="settings-security-pane-desc">Jawab pertanyaan keamanan Anda untuk mengatur ulang password.</div>
-
-                            <div id="forgotPasswordStage1">
-                                <form method="POST" action="settings.php" class="settings-form settings-security-form">
-                                    <input type="hidden" name="action" value="forgot_password_verify_question">
-                                    
-                                    <div class="row g-3">
-                                        <div class="col-md-12">
-                                            <label class="form-label">Pertanyaan Keamanan Anda</label>
-                                            <div class="form-control-static">
-                                                <?php 
-                                                    $primary_q = $current_user_security['primary_question'] ?? 'Tidak ada pertanyaan yang ditetapkan';
-                                                    echo htmlspecialchars($primary_q);
-                                                ?>
-                                            </div>
-                                        </div>
-                                        <div class="col-md-12">
-                                            <label class="form-label">Jawaban Anda</label>
-                                            <input type="text" class="form-control" name="security_question_answer" placeholder="Ketik jawaban Anda" required>
-                                        </div>
-                                    </div>
-
-                                    <div class="settings-profile-actions settings-profile-actions--security">
-                                        <button class="btn btn-profile-outline-save" type="submit">Verifikasi Jawaban</button>
-                                    </div>
-                                </form>
+                            <div class="settings-security-pane-header-row">
+                                <div>
+                                    <div class="settings-security-pane-title">Lupa Password?</div>
+                                    <div class="settings-security-pane-desc">Jawab pertanyaan keamanan Anda untuk mengatur ulang password.</div>
+                                </div>
+                                <button type="button" class="btn btn-profile-outline-security settings-security-back-btn" data-security-pane-target="reset-password">
+                                    <i class="fas fa-arrow-left me-1"></i> Kembali
+                                </button>
                             </div>
 
-                            <div id="forgotPasswordStage2" style="display: none;">
-                                <form method="POST" action="settings.php" class="settings-form settings-security-form">
+                            <div id="forgotPasswordStage1" <?php echo $forgot_password_verified_for_current_user ? 'style="display: none;"' : ''; ?>>
+                                <?php if (empty($current_user_security['has_primary_question'])) { ?>
+                                    <div class="settings-security-empty-state">
+                                        <i class="fas fa-shield-halved"></i>
+                                        <p>Pertanyaan keamanan utama belum diatur. Silakan atur pertanyaan keamanan terlebih dahulu di menu <strong>"Reset Pertanyaan Keamanan"</strong>.</p>
+                                    </div>
+                                <?php } else { ?>
+                                    <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="forgot-password">
+                                        <input type="hidden" name="action" value="forgot_password_verify_question">
+
+                                        <div class="row g-3">
+                                            <div class="col-md-12">
+                                                <label class="form-label">Pertanyaan Keamanan Anda</label>
+                                                <div class="form-control-static">
+                                                    <?php
+                                                    $primary_q = !empty($current_user_security['has_primary_question'])
+                                                        ? ($current_user_security['primary_question'] ?? '')
+                                                        : 'Belum ada pertanyaan keamanan utama yang disimpan';
+                                                    echo htmlspecialchars($primary_q);
+                                                    ?>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-12">
+                                                <label class="form-label">Jawaban Anda</label>
+                                                <div class="password-input-wrap">
+                                                    <input type="password" class="form-control password-toggle-input" name="security_question_answer" id="forgot_answer_input" placeholder="Ketik jawaban Anda" autocomplete="off" required>
+                                                    <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan jawaban" data-toggle-target="forgot_answer_input">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="settings-profile-actions settings-profile-actions--security">
+                                            <button class="btn btn-profile-outline-save" type="submit">Verifikasi Jawaban</button>
+                                        </div>
+                                    </form>
+                                <?php } ?>
+                            </div>
+
+                            <div id="forgotPasswordStage2" <?php echo $forgot_password_verified_for_current_user ? '' : 'style="display: none;"'; ?>>
+                                <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="forgot-password">
                                     <input type="hidden" name="action" value="forgot_password_set_new">
-                                    
+
                                     <div class="row g-3">
                                         <div class="col-md-12">
                                             <label class="form-label">Password Baru</label>
-                                            <input type="password" class="form-control" name="forgot_password_new" placeholder="Masukkan password baru" required>
+                                            <div class="password-input-wrap">
+                                                <input type="password" class="form-control password-toggle-input" name="forgot_password_new" id="forgot_new_pass_input" placeholder="Minimal 6 karakter" autocomplete="new-password" required>
+                                                <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="forgot_new_pass_input">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                         <div class="col-md-12">
                                             <label class="form-label">Konfirmasi Password Baru</label>
-                                            <input type="password" class="form-control" name="forgot_password_confirm" placeholder="Konfirmasi password baru" required>
+                                            <div class="password-input-wrap">
+                                                <input type="password" class="form-control password-toggle-input" name="forgot_password_confirm" id="forgot_confirm_pass_input" placeholder="Ketik ulang password baru" autocomplete="new-password" required>
+                                                <button type="button" class="password-toggle-btn" aria-label="Tampilkan/sembunyikan password" data-toggle-target="forgot_confirm_pass_input">
+                                                    <i class="fas fa-eye"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
 
