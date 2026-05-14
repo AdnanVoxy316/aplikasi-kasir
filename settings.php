@@ -1236,7 +1236,7 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                                 Attendance
                             </h4>
                             <p class="settings-attendance-subtitle">
-                                Catat Absen Masuk dan Pulang kerja Anda. Riwayat ditampilkan di bawah.
+                                Catatan dan riwayat absensi masuk dan pulang kasir.
                             </p>
                         </div>
                         <div class="settings-attendance-header-right">
@@ -1279,14 +1279,19 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
 
                     <!-- History Table -->
                     <div class="settings-attendance-history-section">
-                        <div class="settings-attendance-history-header">
-                            <h6 class="settings-attendance-history-title" style="margin-bottom:0;">
+                        <div class="settings-attendance-history-header" style="display:flex;justify-content:space-between;align-items:center;">
+                            <h6 class="settings-attendance-history-title" style="margin:0;">
                                 <i class="fas fa-history me-1"></i> Riwayat Absensi
                             </h6>
                             <a href="settings.php?attendance_export=csv"
-                               class="btn-minimalist-export"
-                               title="Unduh laporan absensi bulan ini dalam format CSV">
-                                <i class="fas fa-download"></i> Download Laporan
+                               class="attendance-download-icon"
+                               title="Unduh laporan absensi dalam format CSV"
+                               style="padding-right:4px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
                             </a>
                         </div>
 
