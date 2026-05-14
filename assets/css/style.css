@@ -342,6 +342,13 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   line-height: 1;
 }
 
+.header-profile-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .status-indicator {
   width: 0.625rem;
   height: 0.625rem;
@@ -805,6 +812,36 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   border-left-color: rgba(124, 58, 237, 0.68);
 }
 
+.settings-panel--profile-shell.is-visible {
+  padding-top: 2rem;
+}
+
+.settings-feedback-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings-profile-view {
+  display: none;
+}
+
+.settings-profile-view.is-active,
+.settings-security-pane.is-active {
+  display: block;
+  animation: settingsSubViewFadeIn 0.3s ease;
+}
+
+@keyframes settingsSubViewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.375rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .settings-profile-avatar {
   width: 5rem;
   height: 5rem;
@@ -889,8 +926,22 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 .settings-profile-heading--top {
-  margin-bottom: 1rem;
+  margin-top: 1.5rem;
+  margin-bottom: 1.25rem;
   text-align: center;
+}
+
+.settings-profile-heading--top h5 {
+  margin: 0 0 0.125rem;
+}
+
+.settings-profile-heading--top small {
+  margin-top: 0;
+  line-height: 1.15;
+}
+
+.settings-profile-heading--security {
+  margin-bottom: 1rem;
 }
 
 .settings-profile-section {
@@ -957,6 +1008,75 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   background-color: #2563eb;
   color: #ffffff;
   border-color: #1d4ed8;
+}
+
+.settings-security-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem;
+  margin-bottom: 1rem;
+}
+
+.settings-security-menu-btn {
+  width: 100%;
+  padding: 0.9rem 1rem;
+  border: 0.0625rem solid #dbe3ee;
+  border-radius: 0.875rem;
+  background: #ffffff;
+  color: #1e293b;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: left;
+  box-shadow: 0 0.125rem 0.5rem rgba(15, 23, 42, 0.04);
+  transition: all 0.3s ease;
+}
+
+.settings-security-menu-btn:hover,
+.settings-security-menu-btn:focus {
+  border-color: rgba(37, 99, 235, 0.3);
+  background: #f8fafc;
+  color: #0f172a;
+  transform: translateY(-0.0625rem);
+}
+
+.settings-security-menu-btn.is-active {
+  border-color: rgba(40, 167, 69, 0.32);
+  background: rgba(40, 167, 69, 0.08);
+  color: #166534;
+}
+
+.settings-security-menu-btn--back {
+  border-color: rgba(100, 116, 139, 0.28);
+}
+
+.settings-security-pane {
+  display: none;
+}
+
+.settings-security-pane-card {
+  border: 0.0625rem solid #e2e8f0;
+  border-radius: 0.875rem;
+  padding: 1rem;
+  background: #f8fafc;
+}
+
+.settings-security-pane-title {
+  color: #0f172a;
+  font-size: 1rem;
+  font-weight: 800;
+  margin-bottom: 0.25rem;
+}
+
+.settings-security-pane-desc {
+  color: #64748b;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  margin-bottom: 1rem;
+}
+
+.settings-profile-actions--security {
+  margin-top: 1.25rem;
 }
 
 .panel h5 {
@@ -1079,6 +1199,10 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   .settings-profile-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .settings-security-menu {
+    grid-template-columns: 1fr;
   }
 
   .btn-profile-outline-save,

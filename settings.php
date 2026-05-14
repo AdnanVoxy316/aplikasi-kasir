@@ -106,9 +106,6 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama_lengkap = trim($_POST['nama_lengkap'] ?? '');
         $contact_number = trim($_POST['contact_number'] ?? '');
         $email = trim($_POST['email'] ?? '');
-        $security_question = trim($_POST['security_question'] ?? '');
-        $security_answer = trim($_POST['security_answer'] ?? '');
-        $new_password = $_POST['new_password'] ?? '';
         $cashier_id_input = preg_replace('/\D/', '', (string) ($_POST['cashier_id'] ?? ''));
         $profile_photo_file = $_FILES['profile_photo'] ?? null;
 
@@ -116,15 +113,8 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $error_message = 'Nama lengkap wajib diisi.';
         } elseif ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error_message = 'Alamat email tidak valid.';
-        } elseif (!in_array($security_question, $security_question_options, true)) {
-            $error_message = 'Pertanyaan keamanan tidak valid.';
-        } elseif ($security_answer === '') {
-            $error_message = 'Jawaban keamanan wajib diisi.';
         } else {
             $safe_name = $conn->real_escape_string($nama_lengkap);
-            $safe_question = $conn->real_escape_string($security_question);
-            $normalized_answer = mb_strtolower($security_answer, 'UTF-8');
-            $safe_answer_hash = $conn->real_escape_string(password_hash($normalized_answer, PASSWORD_DEFAULT));
             $contact_sql = $contact_number !== ''
                 ? "'" . $conn->real_escape_string($contact_number) . "'"
                 : 'NULL';
@@ -134,9 +124,7 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $updates = [
                 "nama_lengkap = '$safe_name'",
                 "contact_number = $contact_sql",
-                "email = $email_sql",
-                "security_question = '$safe_question'",
-                "security_answer = '$safe_answer_hash'"
+                "email = $email_sql"
             ];
 
             if ($profile_photo_file && ($profile_photo_file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -198,15 +186,6 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            if ($new_password !== '') {
-                if (strlen($new_password) < 6) {
-                    $error_message = 'Password baru minimal 6 karakter.';
-                } else {
-                    $safe_pass = $conn->real_escape_string(password_hash($new_password, PASSWORD_DEFAULT));
-                    $updates[] = "password = '$safe_pass'";
-                }
-            }
-
             if ($error_message === '') {
                 $query = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = $current_user_id LIMIT 1";
                 if ($conn->query($query)) {
@@ -219,6 +198,248 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 } else {
                     $error_message = 'Gagal memperbarui profil.';
                 }
+            }
+        }
+    }
+
+    if ($action === 'reset_profile_password') {
+        $security_old_password = $_POST['security_old_password'] ?? '';
+        $security_new_password = $_POST['security_new_password'] ?? '';
+        $security_confirm_password = $_POST['security_confirm_password'] ?? '';
+
+        if ($security_old_password === '') {
+            $error_message = 'Password Lama wajib diisi untuk verifikasi.';
+        } elseif ($security_new_password === '' || $security_confirm_password === '') {
+            $error_message = 'Password baru dan konfirmasi password wajib diisi.';
+        } elseif (strlen($security_new_password) < 6) {
+            $error_message = 'Password baru minimal 6 karakter.';
+        } elseif (!hash_equals($security_new_password, $security_confirm_password)) {
+            $error_message = 'Konfirmasi password tidak cocok.';
+        } else {
+            $current_user_result = $conn->query("SELECT password FROM users WHERE id = $current_user_id LIMIT 1");
+            if (!$current_user_result || $current_user_result->num_rows === 0) {
+                $error_message = 'Pengguna tidak ditemukan.';
+            } else {
+                $current_user_data = $current_user_result->fetch_assoc();
+                $stored_password = (string) ($current_user_data['password'] ?? '');
+                
+                if (!password_verify($security_old_password, $stored_password)) {
+                    $error_message = 'Password Lama tidak sesuai.';
+                } else {
+                    $safe_pass = $conn->real_escape_string(password_hash($security_new_password, PASSWORD_DEFAULT));
+                    if ($conn->query("UPDATE users SET password = '$safe_pass' WHERE id = $current_user_id LIMIT 1")) {
+                        $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email, profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
+                        if ($fresh && $fresh->num_rows === 1) {
+                            loginCashierSession($fresh->fetch_assoc());
+                            $current_user = getCurrentCashier();
+                        }
+                        $success_message = 'Password akun berhasil diperbarui.';
+                    } else {
+                        $error_message = 'Gagal memperbarui password akun.';
+                    }
+                }
+            }
+        }
+    }
+
+    if ($action === 'reset_primary_security_question') {
+        $security_old_password = $_POST['security_old_password_primary'] ?? '';
+        $primary_security_question = trim($_POST['primary_security_question'] ?? '');
+        $primary_security_answer = trim($_POST['primary_security_answer'] ?? '');
+
+        if ($security_old_password === '') {
+            $error_message = 'Password Lama wajib diisi untuk verifikasi.';
+        } elseif (!in_array($primary_security_question, $security_question_options, true)) {
+            $error_message = 'Pertanyaan keamanan utama tidak valid.';
+        } elseif ($primary_security_answer === '') {
+            $error_message = 'Jawaban pertanyaan keamanan utama wajib diisi.';
+        } else {
+            $current_user_result = $conn->query("SELECT password FROM users WHERE id = $current_user_id LIMIT 1");
+            if (!$current_user_result || $current_user_result->num_rows === 0) {
+                $error_message = 'Pengguna tidak ditemukan.';
+            } else {
+                $current_user_data = $current_user_result->fetch_assoc();
+                $stored_password = (string) ($current_user_data['password'] ?? '');
+                
+                if (!password_verify($security_old_password, $stored_password)) {
+                    $error_message = 'Password Lama tidak sesuai.';
+                } else {
+                    $normalized_answer = mb_strtolower($primary_security_answer, 'UTF-8');
+                    $safe_question = $conn->real_escape_string($primary_security_question);
+                    $safe_answer_hash = $conn->real_escape_string(password_hash($normalized_answer, PASSWORD_DEFAULT));
+
+                    if ($conn->query("UPDATE users SET security_question = '$safe_question', security_answer = '$safe_answer_hash' WHERE id = $current_user_id LIMIT 1")) {
+                        $success_message = 'Pertanyaan keamanan utama berhasil diperbarui.';
+                    } else {
+                        $error_message = 'Gagal memperbarui pertanyaan keamanan utama.';
+                    }
+                }
+            }
+        }
+    }
+
+    if ($action === 'update_additional_security_questions') {
+        $security_old_password = $_POST['security_old_password_additional'] ?? '';
+        $secondary_question = trim($_POST['security_question_secondary'] ?? '');
+        $secondary_answer = trim($_POST['security_answer_secondary'] ?? '');
+        $tertiary_question = trim($_POST['security_question_tertiary'] ?? '');
+        $tertiary_answer = trim($_POST['security_answer_tertiary'] ?? '');
+
+        if ($security_old_password === '') {
+            $error_message = 'Password Lama wajib diisi untuk verifikasi.';
+        } else {
+            $current_user_result = $conn->query("SELECT password FROM users WHERE id = $current_user_id LIMIT 1");
+            if (!$current_user_result || $current_user_result->num_rows === 0) {
+                $error_message = 'Pengguna tidak ditemukan.';
+            } else {
+                $current_user_data = $current_user_result->fetch_assoc();
+                $stored_password = (string) ($current_user_data['password'] ?? '');
+                
+                if (!password_verify($security_old_password, $stored_password)) {
+                    $error_message = 'Password Lama tidak sesuai.';
+                } else {
+                    $security_state_result = $conn->query("SELECT security_question, security_question_secondary, security_answer_secondary, security_question_tertiary, security_answer_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
+                    $security_state = $security_state_result && $security_state_result->num_rows === 1
+                        ? $security_state_result->fetch_assoc()
+                        : [];
+
+                    $current_primary_question = trim((string) ($security_state['security_question'] ?? ''));
+                    $current_secondary_question = trim((string) ($security_state['security_question_secondary'] ?? ''));
+                    $current_secondary_answer = trim((string) ($security_state['security_answer_secondary'] ?? ''));
+                    $current_tertiary_question = trim((string) ($security_state['security_question_tertiary'] ?? ''));
+                    $current_tertiary_answer = trim((string) ($security_state['security_answer_tertiary'] ?? ''));
+
+                    $normalized_slots = [];
+                    $question_registry = [];
+                    if ($current_primary_question !== '') {
+                        $question_registry[] = $current_primary_question;
+                    }
+
+                    $slot_payloads = [
+                        'secondary' => [
+                            'question' => $secondary_question,
+                            'answer' => $secondary_answer,
+                            'current_question' => $current_secondary_question,
+                            'current_answer' => $current_secondary_answer,
+                        ],
+                        'tertiary' => [
+                            'question' => $tertiary_question,
+                            'answer' => $tertiary_answer,
+                            'current_question' => $current_tertiary_question,
+                            'current_answer' => $current_tertiary_answer,
+                        ],
+                    ];
+
+                    foreach ($slot_payloads as $slot_name => $slot) {
+                        $question = trim((string) ($slot['question'] ?? ''));
+                        $answer = trim((string) ($slot['answer'] ?? ''));
+                        $current_question = trim((string) ($slot['current_question'] ?? ''));
+                        $current_answer = trim((string) ($slot['current_answer'] ?? ''));
+
+                        if ($question === '' && $answer === '') {
+                            $normalized_slots[$slot_name] = [
+                                'question_sql' => 'NULL',
+                                'answer_sql' => 'NULL',
+                            ];
+                            continue;
+                        }
+
+                        if (!in_array($question, $security_question_options, true)) {
+                            $error_message = 'Pertanyaan keamanan tambahan tidak valid.';
+                            break;
+                        }
+
+                        if (in_array($question, $question_registry, true) && $question !== $current_question) {
+                            $error_message = 'Setiap pertanyaan keamanan harus berbeda.';
+                            break;
+                        }
+
+                        if ($answer === '') {
+                            if ($question === $current_question && $current_answer !== '') {
+                                $normalized_slots[$slot_name] = [
+                                    'question_sql' => "'" . $conn->real_escape_string($question) . "'",
+                                    'answer_sql' => "'" . $conn->real_escape_string($current_answer) . "'",
+                                ];
+                                $question_registry[] = $question;
+                                continue;
+                            }
+
+                            $error_message = 'Jawaban untuk pertanyaan keamanan tambahan wajib diisi.';
+                            break;
+                        }
+
+                        $normalized_answer = mb_strtolower($answer, 'UTF-8');
+                        $normalized_slots[$slot_name] = [
+                            'question_sql' => "'" . $conn->real_escape_string($question) . "'",
+                            'answer_sql' => "'" . $conn->real_escape_string(password_hash($normalized_answer, PASSWORD_DEFAULT)) . "'",
+                        ];
+                        $question_registry[] = $question;
+                    }
+
+                    if ($error_message === '') {
+                        $query = "UPDATE users SET
+                                    security_question_secondary = " . $normalized_slots['secondary']['question_sql'] . ",
+                                    security_answer_secondary = " . $normalized_slots['secondary']['answer_sql'] . ",
+                                    security_question_tertiary = " . $normalized_slots['tertiary']['question_sql'] . ",
+                                    security_answer_tertiary = " . $normalized_slots['tertiary']['answer_sql'] . "
+                      WHERE id = $current_user_id LIMIT 1";
+
+            if ($conn->query($query)) {
+                $success_message = 'Pertanyaan keamanan tambahan berhasil diperbarui.';
+            } else {
+                $error_message = 'Gagal memperbarui pertanyaan keamanan tambahan.';
+            }
+        }
+    }
+
+    if ($action === 'forgot_password_verify_question') {
+        $security_question_answer = trim($_POST['security_question_answer'] ?? '');
+        
+        if ($security_question_answer === '') {
+            $error_message = 'Jawaban pertanyaan keamanan wajib diisi.';
+        } else {
+            $security_result = $conn->query("SELECT security_question, security_answer FROM users WHERE id = $current_user_id LIMIT 1");
+            if (!$security_result || $security_result->num_rows === 0) {
+                $error_message = 'Pengguna tidak ditemukan.';
+            } else {
+                $security_data = $security_result->fetch_assoc();
+                $stored_answer_hash = (string) ($security_data['security_answer'] ?? '');
+                $normalized_input = mb_strtolower($security_question_answer, 'UTF-8');
+                
+                if (empty($stored_answer_hash) || !password_verify($normalized_input, $stored_answer_hash)) {
+                    $error_message = 'Jawaban pertanyaan keamanan tidak sesuai.';
+                } else {
+                    $_SESSION['forgot_password_verified'] = true;
+                    $_SESSION['forgot_password_verified_user_id'] = $current_user_id;
+                    $success_message = 'Jawaban benar! Silakan atur password baru Anda.';
+                }
+            }
+        }
+    }
+
+    if ($action === 'forgot_password_set_new' && isset($_SESSION['forgot_password_verified']) && $_SESSION['forgot_password_verified'] === true) {
+        $new_password = $_POST['forgot_password_new'] ?? '';
+        $confirm_password = $_POST['forgot_password_confirm'] ?? '';
+        
+        if ($new_password === '' || $confirm_password === '') {
+            $error_message = 'Password baru dan konfirmasi password wajib diisi.';
+        } elseif (strlen($new_password) < 6) {
+            $error_message = 'Password baru minimal 6 karakter.';
+        } elseif (!hash_equals($new_password, $confirm_password)) {
+            $error_message = 'Konfirmasi password tidak cocok.';
+        } else {
+            $safe_pass = $conn->real_escape_string(password_hash($new_password, PASSWORD_DEFAULT));
+            if ($conn->query("UPDATE users SET password = '$safe_pass' WHERE id = $current_user_id LIMIT 1")) {
+                unset($_SESSION['forgot_password_verified']);
+                unset($_SESSION['forgot_password_verified_user_id']);
+                $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email, profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
+                if ($fresh && $fresh->num_rows === 1) {
+                    loginCashierSession($fresh->fetch_assoc());
+                    $current_user = getCurrentCashier();
+                }
+                $success_message = 'Password berhasil direset. Silakan login kembali dengan password baru Anda.';
+            } else {
+                $error_message = 'Gagal mereset password.';
             }
         }
     }
@@ -421,9 +642,14 @@ $current_user_profile = [
     'email' => (string) ($current_user['email'] ?? ''),
     'profile_photo' => (string) ($current_user['profile_photo'] ?? ''),
 ];
+$current_user_security = [
+    'primary_question' => $security_question_options[0],
+    'secondary_question' => '',
+    'tertiary_question' => '',
+];
 
 if ($is_logged_in) {
-    $user_profile_result = $conn->query("SELECT username, nama_lengkap, cashier_id, contact_number, email, profile_photo, security_question FROM users WHERE id = $current_user_id LIMIT 1");
+    $user_profile_result = $conn->query("SELECT username, nama_lengkap, cashier_id, contact_number, email, profile_photo, security_question, security_question_secondary, security_question_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
     if ($user_profile_result && $user_profile_result->num_rows === 1) {
         $user_profile_row = $user_profile_result->fetch_assoc();
         $current_user_profile['username'] = (string) ($user_profile_row['username'] ?? $current_user_profile['username']);
@@ -435,6 +661,17 @@ if ($is_logged_in) {
         $saved_question = trim((string) ($user_profile_row['security_question'] ?? ''));
         if (in_array($saved_question, $security_question_options, true)) {
             $selected_security_question = $saved_question;
+        }
+        $current_user_security['primary_question'] = $selected_security_question;
+
+        $secondary_question = trim((string) ($user_profile_row['security_question_secondary'] ?? ''));
+        if (in_array($secondary_question, $security_question_options, true)) {
+            $current_user_security['secondary_question'] = $secondary_question;
+        }
+
+        $tertiary_question = trim((string) ($user_profile_row['security_question_tertiary'] ?? ''));
+        if (in_array($tertiary_question, $security_question_options, true)) {
+            $current_user_security['tertiary_question'] = $tertiary_question;
         }
     }
 }
@@ -520,91 +757,270 @@ if ($is_logged_in) {
             <?php } ?>
         </div>
 
+        <?php if ($success_message !== '' || $error_message !== '') { ?>
+            <div class="settings-feedback-stack">
+                <?php if ($success_message !== '') { ?>
+                    <div class="alert alert-success auto-hide-alert mb-0" role="alert">
+                        <?php echo htmlspecialchars($success_message); ?>
+                    </div>
+                <?php } ?>
+
+                <?php if ($error_message !== '') { ?>
+                    <div class="alert alert-danger mb-0" role="alert">
+                        <?php echo htmlspecialchars($error_message); ?>
+                    </div>
+                <?php } ?>
+            </div>
+        <?php } ?>
+
         <?php if ($is_logged_in) { ?>
-            <div class="panel settings-panel settings-panel--profile" id="my-profile" data-settings-panel="my-profile" aria-hidden="true">
-                <form method="POST" action="settings.php" class="settings-form settings-profile-form" enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="update_my_profile">
+            <div class="panel settings-panel settings-panel--profile settings-panel--profile-shell" id="my-profile" data-settings-panel="my-profile" aria-hidden="true">
+                <div class="settings-profile-view settings-profile-view--main is-active" data-profile-view="main">
+                    <form method="POST" action="settings.php" class="settings-form settings-profile-form" enctype="multipart/form-data">
+                        <input type="hidden" name="action" value="update_my_profile">
 
-                    <div class="settings-profile-heading settings-profile-heading--top">
-                        <h5>My Profile</h5>
-                        <small>Perbarui identitas akun, informasi kontak, dan keamanan profil.</small>
-                    </div>
-
-                    <div class="settings-profile-photo-block">
-                        <div class="settings-profile-avatar">
-                            <?php if (!empty($current_user_profile['profile_photo'])) { ?>
-                                <img src="assets/img/<?php echo htmlspecialchars($current_user_profile['profile_photo']); ?>" alt="Foto Profil" class="settings-profile-avatar-image" id="settingsProfileAvatarPreview">
-                                <div class="settings-profile-avatar-placeholder hidden" id="settingsProfileAvatarPlaceholder" aria-hidden="true">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                            <?php } else { ?>
-                                <img src="" alt="Foto Profil" class="settings-profile-avatar-image hidden" id="settingsProfileAvatarPreview">
-                                <div class="settings-profile-avatar-placeholder" id="settingsProfileAvatarPlaceholder" aria-hidden="true">
-                                    <i class="fas fa-user"></i>
-                                </div>
-                            <?php } ?>
-
-                            <label for="profilePhotoInput" class="settings-profile-avatar-upload" aria-label="Ubah foto profil">
-                                <i class="fas fa-camera"></i>
-                            </label>
+                        <div class="settings-profile-heading settings-profile-heading--top">
+                            <h5>My Profile</h5>
+                            <small>Perbarui identitas akun, informasi kontak, dan keamanan profil.</small>
                         </div>
-                        <input type="file" class="hidden" id="profilePhotoInput" name="profile_photo" accept="image/jpeg,image/png,image/webp,image/gif">
-                    </div>
 
-                    <div class="settings-profile-id-wrap">
-                        <label class="form-label">ID Kasir</label>
-                        <input type="text" class="form-control" name="cashier_id" inputmode="numeric" maxlength="11" pattern="\d{11}" value="<?php echo htmlspecialchars($current_user_profile['cashier_id']); ?>" readonly>
-                    </div>
+                        <div class="settings-profile-photo-block">
+                            <div class="settings-profile-avatar">
+                                <?php if (!empty($current_user_profile['profile_photo'])) { ?>
+                                    <img src="assets/img/<?php echo htmlspecialchars($current_user_profile['profile_photo']); ?>" alt="Foto Profil" class="settings-profile-avatar-image" id="settingsProfileAvatarPreview">
+                                    <div class="settings-profile-avatar-placeholder hidden" id="settingsProfileAvatarPlaceholder" aria-hidden="true">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                <?php } else { ?>
+                                    <img src="" alt="Foto Profil" class="settings-profile-avatar-image hidden" id="settingsProfileAvatarPreview">
+                                    <div class="settings-profile-avatar-placeholder" id="settingsProfileAvatarPlaceholder" aria-hidden="true">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                <?php } ?>
 
-                    <div class="row g-3">
-                        <div class="col-md-6">
-                            <label class="form-label">Username</label>
-                            <input class="form-control" value="<?php echo htmlspecialchars($current_user_profile['username']); ?>" readonly>
+                                <label for="profilePhotoInput" class="settings-profile-avatar-upload" aria-label="Ubah foto profil">
+                                    <i class="fas fa-camera"></i>
+                                </label>
+                            </div>
+                            <input type="file" class="hidden" id="profilePhotoInput" name="profile_photo" accept="image/jpeg,image/png,image/webp,image/gif">
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nama Lengkap</label>
-                            <input class="form-control" name="nama_lengkap" value="<?php echo htmlspecialchars($current_user_profile['nama_lengkap']); ?>" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Nomor Kontak</label>
-                            <input type="text" class="form-control" name="contact_number" inputmode="tel" placeholder="08xxxxxxxxxx" value="<?php echo htmlspecialchars($current_user_profile['contact_number']); ?>">
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Alamat Email</label>
-                            <input type="email" class="form-control" name="email" placeholder="nama@email.com" value="<?php echo htmlspecialchars($current_user_profile['email']); ?>">
-                        </div>
-                    </div>
 
-                    <div class="settings-profile-section" id="profileSecuritySection">
-                        <div class="settings-profile-section-title">Keamanan Akun</div>
+                        <div class="settings-profile-id-wrap">
+                            <label class="form-label">ID Kasir</label>
+                            <input type="text" class="form-control" name="cashier_id" inputmode="numeric" maxlength="11" pattern="\d{11}" value="<?php echo htmlspecialchars($current_user_profile['cashier_id']); ?>" readonly>
+                        </div>
+
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="form-label">Password Baru</label>
-                                <input type="password" class="form-control" name="new_password" placeholder="Opsional">
+                                <label class="form-label">Username</label>
+                                <input class="form-control" value="<?php echo htmlspecialchars($current_user_profile['username']); ?>" readonly>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Pertanyaan Keamanan</label>
-                                <select class="form-select" name="security_question" required>
-                                    <?php foreach ($security_question_options as $question_option) { ?>
-                                        <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $selected_security_question === $question_option ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($question_option); ?>
-                                        </option>
-                                    <?php } ?>
-                                </select>
+                                <label class="form-label">Nama Lengkap</label>
+                                <input class="form-control" name="nama_lengkap" value="<?php echo htmlspecialchars($current_user_profile['nama_lengkap']); ?>" required>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">Jawaban Keamanan</label>
-                                <input type="text" class="form-control" name="security_answer" placeholder="Masukkan jawaban keamanan" required>
-                                <small class="text-muted">Jawaban tidak membedakan huruf besar/kecil.</small>
+                                <label class="form-label">Nomor Kontak</label>
+                                <input type="text" class="form-control" name="contact_number" inputmode="tel" placeholder="08xxxxxxxxxx" value="<?php echo htmlspecialchars($current_user_profile['contact_number']); ?>">
                             </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Alamat Email</label>
+                                <input type="email" class="form-control" name="email" placeholder="nama@email.com" value="<?php echo htmlspecialchars($current_user_profile['email']); ?>">
+                            </div>
+                        </div>
+
+                        <div class="settings-profile-actions">
+                            <button class="btn btn-profile-outline-security" type="button" data-open-profile-security="1">Keamanan Akun</button>
+                            <button class="btn btn-profile-outline-save" type="submit">Simpan Profil</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="settings-profile-view settings-profile-view--security" data-profile-view="security">
+                    <div class="settings-profile-heading settings-profile-heading--top settings-profile-heading--security">
+                        <h5>Keamanan Akun</h5>
+                        <small>Pilih alur keamanan yang ingin Anda kelola dari menu berikut.</small>
+                    </div>
+
+                    <div class="settings-security-menu">
+                        <button type="button" class="settings-security-menu-btn is-active" data-security-pane-target="reset-password">Reset Password</button>
+                        <button type="button" class="settings-security-menu-btn" data-security-pane-target="reset-primary-question">Reset Pertanyaan Keamanan</button>
+                        <button type="button" class="settings-security-menu-btn" data-security-pane-target="additional-questions">Menambahkan Pertanyaan Keamanan</button>
+                        <button type="button" class="settings-security-menu-btn settings-security-menu-btn--back" data-return-profile-main="1">Kembali ke Settings</button>
+                    </div>
+
+                    <div class="settings-security-pane is-active" data-security-pane="reset-password">
+                        <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="reset-password">
+                            <input type="hidden" name="action" value="reset_profile_password">
+                            <div class="settings-security-pane-card">
+                                <div class="settings-security-pane-title">Reset Password</div>
+                                <div class="settings-security-pane-desc">Perbarui password akun Anda dengan kombinasi baru yang lebih aman.</div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Password Lama <span class="text-danger">*</span></label>
+                                        <input type="password" class="form-control" name="security_old_password" placeholder="Masukkan password lama Anda" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Password Baru</label>
+                                        <input type="password" class="form-control" name="security_new_password" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Konfirmasi Password Baru</label>
+                                        <input type="password" class="form-control" name="security_confirm_password" required>
+                                    </div>
+                                </div>
+
+                                <div class="settings-profile-actions settings-profile-actions--security">
+                                    <button class="btn btn-profile-outline-save" type="submit">Simpan Password</button>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="settings-security-forgot-link">
+                            <button type="button" class="settings-security-forgot-btn" data-security-pane-target="forgot-password">Lupa Password?</button>
                         </div>
                     </div>
 
-                    <div class="settings-profile-actions">
-                        <button class="btn btn-profile-outline-security" type="button" data-settings-focus-target="#profileSecuritySection">Keamanan Akun</button>
-                        <button class="btn btn-profile-outline-save" type="submit">Simpan Profil</button>
+                    <div class="settings-security-pane" data-security-pane="reset-primary-question">
+                        <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="reset-primary-question">
+                            <input type="hidden" name="action" value="reset_primary_security_question">
+                            <div class="settings-security-pane-card">
+                                <div class="settings-security-pane-title">Reset Pertanyaan Keamanan</div>
+                                <div class="settings-security-pane-desc">Atur ulang pertanyaan keamanan utama beserta jawaban barunya.</div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Password Lama <span class="text-danger">*</span></label>
+                                        <input type="password" class="form-control" name="security_old_password_primary" placeholder="Masukkan password Anda untuk verifikasi" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Pertanyaan Keamanan Utama</label>
+                                        <select class="form-select" name="primary_security_question" required>
+                                            <?php foreach ($security_question_options as $question_option) { ?>
+                                                <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $current_user_security['primary_question'] === $question_option ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($question_option); ?>
+                                                </option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Jawaban Baru</label>
+                                        <input type="text" class="form-control" name="primary_security_answer" required>
+                                    </div>
+                                </div>
+
+                                <div class="settings-profile-actions settings-profile-actions--security">
+                                    <button class="btn btn-profile-outline-save" type="submit">Simpan Pertanyaan Utama</button>
+                                </div>
+                            </div>
+                        </form>
                     </div>
-                </form>
+
+                    <div class="settings-security-pane" data-security-pane="additional-questions">
+                        <form method="POST" action="settings.php" class="settings-form settings-security-form" data-security-submit-pane="additional-questions">
+                            <input type="hidden" name="action" value="update_additional_security_questions">
+                            <div class="settings-security-pane-card">
+                                <div class="settings-security-pane-title">Menambahkan Pertanyaan Keamanan</div>
+                                <div class="settings-security-pane-desc">Kelola pertanyaan keamanan tambahan agar akun memiliki hingga 3 lapis verifikasi.</div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-12">
+                                        <label class="form-label">Password Lama <span class="text-danger">*</span></label>
+                                        <input type="password" class="form-control" name="security_old_password_additional" placeholder="Masukkan password Anda untuk verifikasi" required>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Pertanyaan Keamanan 2</label>
+                                        <select class="form-select" name="security_question_secondary">
+                                            <option value="">Tidak digunakan</option>
+                                            <?php foreach ($security_question_options as $question_option) { ?>
+                                                <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $current_user_security['secondary_question'] === $question_option ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($question_option); ?>
+                                                </option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Jawaban Pertanyaan 2</label>
+                                        <input type="text" class="form-control" name="security_answer_secondary" placeholder="Isi jika ingin menambah/memperbarui">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Pertanyaan Keamanan 3</label>
+                                        <select class="form-select" name="security_question_tertiary">
+                                            <option value="">Tidak digunakan</option>
+                                            <?php foreach ($security_question_options as $question_option) { ?>
+                                                <option value="<?php echo htmlspecialchars($question_option); ?>" <?php echo $current_user_security['tertiary_question'] === $question_option ? 'selected' : ''; ?>>
+                                                    <?php echo htmlspecialchars($question_option); ?>
+                                                </option>
+                                            <?php } ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Jawaban Pertanyaan 3</label>
+                                        <input type="text" class="form-control" name="security_answer_tertiary" placeholder="Isi jika ingin menambah/memperbarui">
+                                    </div>
+                                </div>
+
+                                <div class="settings-profile-actions settings-profile-actions--security">
+                                    <button class="btn btn-profile-outline-save" type="submit">Simpan Pertanyaan Tambahan</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="settings-security-pane" data-security-pane="forgot-password">
+                        <div class="settings-security-pane-card">
+                            <div class="settings-security-pane-title">Lupa Password?</div>
+                            <div class="settings-security-pane-desc">Jawab pertanyaan keamanan Anda untuk mengatur ulang password.</div>
+
+                            <div id="forgotPasswordStage1">
+                                <form method="POST" action="settings.php" class="settings-form settings-security-form">
+                                    <input type="hidden" name="action" value="forgot_password_verify_question">
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label">Pertanyaan Keamanan Anda</label>
+                                            <div class="form-control-static">
+                                                <?php 
+                                                    $primary_q = $current_user_security['primary_question'] ?? 'Tidak ada pertanyaan yang ditetapkan';
+                                                    echo htmlspecialchars($primary_q);
+                                                ?>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label">Jawaban Anda</label>
+                                            <input type="text" class="form-control" name="security_question_answer" placeholder="Ketik jawaban Anda" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="settings-profile-actions settings-profile-actions--security">
+                                        <button class="btn btn-profile-outline-save" type="submit">Verifikasi Jawaban</button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <div id="forgotPasswordStage2" style="display: none;">
+                                <form method="POST" action="settings.php" class="settings-form settings-security-form">
+                                    <input type="hidden" name="action" value="forgot_password_set_new">
+                                    
+                                    <div class="row g-3">
+                                        <div class="col-md-12">
+                                            <label class="form-label">Password Baru</label>
+                                            <input type="password" class="form-control" name="forgot_password_new" placeholder="Masukkan password baru" required>
+                                        </div>
+                                        <div class="col-md-12">
+                                            <label class="form-label">Konfirmasi Password Baru</label>
+                                            <input type="password" class="form-control" name="forgot_password_confirm" placeholder="Konfirmasi password baru" required>
+                                        </div>
+                                    </div>
+
+                                    <div class="settings-profile-actions settings-profile-actions--security">
+                                        <button class="btn btn-profile-outline-save" type="submit">Simpan Password Baru</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         <?php } ?>
 

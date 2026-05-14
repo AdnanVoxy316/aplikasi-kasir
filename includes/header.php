@@ -1,6 +1,14 @@
 <?php
 $is_logged_in_header = function_exists('isLoggedIn') ? isLoggedIn() : false;
 $header_user_name = function_exists('getActiveCashierName') ? getActiveCashierName() : 'Guest';
+$header_user_photo = '';
+$header_user_photo_default = true;
+
+if ($is_logged_in_header) {
+    $current_cashier = function_exists('getCurrentCashier') ? getCurrentCashier() : null;
+    $header_user_photo = (string) ($current_cashier['profile_photo'] ?? '');
+    $header_user_photo_default = $header_user_photo === '';
+}
 ?>
 
 <!-- Header -->
@@ -16,8 +24,12 @@ $header_user_name = function_exists('getActiveCashierName') ? getActiveCashierNa
         </div>
         <div class="header-right">
             <div class="user-status user-status-primary">
-                <span class="header-profile-avatar" aria-hidden="true">
-                    <i class="fas fa-user"></i>
+                <span class="header-profile-avatar" aria-hidden="true" id="headerProfileAvatarContainer">
+                    <?php if ($header_user_photo_default) { ?>
+                        <i class="fas fa-user"></i>
+                    <?php } else { ?>
+                        <img src="assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo time(); ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
+                    <?php } ?>
                 </span>
                 <span><?php echo htmlspecialchars($header_user_name); ?></span>
             </div>

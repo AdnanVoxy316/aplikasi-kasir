@@ -21,6 +21,10 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
         profile_photo VARCHAR(255) NULL,
         security_question VARCHAR(255) NULL,
         security_answer VARCHAR(255) NULL,
+        security_question_secondary VARCHAR(255) NULL,
+        security_answer_secondary VARCHAR(255) NULL,
+        security_question_tertiary VARCHAR(255) NULL,
+        security_answer_tertiary VARCHAR(255) NULL,
         is_active TINYINT(1) NOT NULL DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -38,6 +42,10 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
     ensureColumnExists($conn, 'users', 'profile_photo', "ALTER TABLE users ADD COLUMN profile_photo VARCHAR(255) NULL AFTER email");
     ensureColumnExists($conn, 'users', 'security_question', "ALTER TABLE users ADD COLUMN security_question VARCHAR(255) NULL AFTER nama_lengkap");
     ensureColumnExists($conn, 'users', 'security_answer', "ALTER TABLE users ADD COLUMN security_answer VARCHAR(255) NULL AFTER security_question");
+    ensureColumnExists($conn, 'users', 'security_question_secondary', "ALTER TABLE users ADD COLUMN security_question_secondary VARCHAR(255) NULL AFTER security_answer");
+    ensureColumnExists($conn, 'users', 'security_answer_secondary', "ALTER TABLE users ADD COLUMN security_answer_secondary VARCHAR(255) NULL AFTER security_question_secondary");
+    ensureColumnExists($conn, 'users', 'security_question_tertiary', "ALTER TABLE users ADD COLUMN security_question_tertiary VARCHAR(255) NULL AFTER security_answer_secondary");
+    ensureColumnExists($conn, 'users', 'security_answer_tertiary', "ALTER TABLE users ADD COLUMN security_answer_tertiary VARCHAR(255) NULL AFTER security_question_tertiary");
     ensureColumnExists($conn, 'users', 'is_active', "ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER nama_lengkap");
     ensureColumnExists($conn, 'users', 'created_at', "ALTER TABLE users ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
     ensureColumnExists($conn, 'users', 'updated_at', "ALTER TABLE users ADD COLUMN updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP");

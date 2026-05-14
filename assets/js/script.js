@@ -614,6 +614,159 @@
   document.addEventListener("DOMContentLoaded", bindSettingsProfilePhotoLogic);
 })();
 
+/* --- SETTINGS PROFILE SECURITY FLOW LOGIC --- */
+(function settingsProfileSecurityFlowLogic() {
+  function bindSettingsProfileSecurityFlow() {
+    const profilePanel = document.querySelector(
+      '[data-settings-panel="my-profile"]',
+    );
+    if (!profilePanel) return;
+
+    const mainView = profilePanel.querySelector('[data-profile-view="main"]');
+    const securityView = profilePanel.querySelector(
+      '[data-profile-view="security"]',
+    );
+    if (!mainView || !securityView) return;
+
+    const openSecurityButton = profilePanel.querySelector(
+      '[data-open-profile-security="1"]',
+    );
+    const backButtons = profilePanel.querySelectorAll(
+      '[data-return-profile-main="1"]',
+    );
+    const paneButtons = profilePanel.querySelectorAll(
+      "[data-security-pane-target]",
+    );
+    const securityPanes = profilePanel.querySelectorAll("[data-security-pane]");
+    const securityForms = profilePanel.querySelectorAll(
+      "form[data-security-submit-pane]",
+    );
+    const viewStorageKey = "kasirPintarProfileSubview";
+    const paneStorageKey = "kasirPintarProfileSecurityPane";
+    const defaultPane = "reset-password";
+
+    function refreshPanelHeight() {
+      if (!profilePanel.classList.contains("is-visible")) return;
+      window.requestAnimationFrame(() => {
+        profilePanel.style.maxHeight = `${profilePanel.scrollHeight + 24}px`;
+      });
+    }
+
+    function setView(viewName, persist = true) {
+      const isSecurityView = viewName === "security";
+      mainView.classList.toggle("is-active", !isSecurityView);
+      securityView.classList.toggle("is-active", isSecurityView);
+
+      if (persist) {
+        window.sessionStorage.setItem(
+          viewStorageKey,
+          isSecurityView ? "security" : "main",
+        );
+      }
+
+      refreshPanelHeight();
+    }
+
+    function setPane(paneName, persist = true) {
+      let activePane = defaultPane;
+
+      paneButtons.forEach((button) => {
+        const isTarget = button.dataset.securityPaneTarget === paneName;
+        button.classList.toggle("is-active", isTarget);
+        if (isTarget) {
+          activePane = paneName;
+        }
+      });
+
+      securityPanes.forEach((pane) => {
+        pane.classList.toggle(
+          "is-active",
+          pane.dataset.securityPane === activePane,
+        );
+      });
+
+      if (persist) {
+        window.sessionStorage.setItem(paneStorageKey, activePane);
+      }
+
+      refreshPanelHeight();
+    }
+
+    if (openSecurityButton) {
+      openSecurityButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        setView("security");
+        setPane(window.sessionStorage.getItem(paneStorageKey) || defaultPane);
+      });
+    }
+
+    backButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        setView("main");
+      });
+    });
+
+    paneButtons.forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        setView("security");
+        setPane(button.dataset.securityPaneTarget || defaultPane);
+      });
+    });
+
+    securityForms.forEach((form) => {
+      form.addEventListener("submit", () => {
+        window.sessionStorage.setItem(viewStorageKey, "security");
+        window.sessionStorage.setItem(
+          paneStorageKey,
+          form.dataset.securitySubmitPane || defaultPane,
+        );
+      });
+    });
+
+    const myProfileMenuCard = document.querySelector(
+      '.menu-card[data-settings-toggle="my-profile"]',
+    );
+    if (myProfileMenuCard) {
+      myProfileMenuCard.addEventListener("click", () => {
+        window.setTimeout(() => {
+          if (!profilePanel.classList.contains("is-visible")) return;
+
+          const desiredView =
+            window.sessionStorage.getItem(viewStorageKey) === "security"
+              ? "security"
+              : "main";
+
+          setView(desiredView, false);
+          if (desiredView === "security") {
+            setPane(
+              window.sessionStorage.getItem(paneStorageKey) || defaultPane,
+              false,
+            );
+          }
+        }, 30);
+      });
+    }
+
+    const initialView =
+      window.sessionStorage.getItem(viewStorageKey) === "security"
+        ? "security"
+        : "main";
+
+    setView(initialView, false);
+    setPane(
+      window.sessionStorage.getItem(paneStorageKey) || defaultPane,
+      false,
+    );
+  }
+
+  document.addEventListener(
+    "DOMContentLoaded",
+    bindSettingsProfileSecurityFlow,
+  );
+})();
+
 /* --- DASHBOARD LOGIC --- */
 (function dashboardLogic() {
   const root = document.getElementById("dashboardPageRoot");
