@@ -656,7 +656,7 @@ if ($is_cashier) {
     $open_result = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
     $current_shift_open = $open_result && $open_result->num_rows > 0;
 
-    $my_log_result = $conn->query("SELECT clock_in_at, clock_out_at FROM attendance_logs WHERE user_id = $current_user_id ORDER BY clock_in_at DESC LIMIT 10");
+    $my_log_result = $conn->query("SELECT DATE(clock_in_at) as date, clock_in_at, clock_out_at FROM attendance_logs WHERE user_id = $current_user_id ORDER BY clock_in_at DESC LIMIT 10");
     if ($my_log_result) {
         while ($row = $my_log_result->fetch_assoc()) {
             $my_attendance_logs[] = $row;
@@ -1227,29 +1227,148 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
 
         <?php if ($is_cashier) { ?>
             <div class="panel settings-panel settings-panel--attendance" id="attendance" data-settings-panel="attendance" aria-hidden="true">
-                <h5><i class="fas fa-fingerprint me-2"></i>Attendance</h5>
-                <p class="text-muted">Status shift saat ini:
-                    <span id="settingsAttendanceStatusBadge" class="badge <?php echo $current_shift_open ? 'bg-success' : 'bg-secondary'; ?>"><?php echo $current_shift_open ? 'Online' : 'Offline'; ?></span>
-                </p>
-                <form method="POST" action="settings.php" class="d-flex gap-2 mb-3" id="settingsAttendanceForm">
-                    <button class="btn btn-success" type="submit" name="action" value="clock_in" id="settingsClockInBtn" <?php echo $current_shift_open ? 'disabled' : ''; ?>>Absen Masuk</button>
-                    <button class="btn btn-danger" type="submit" name="action" value="clock_out" id="settingsClockOutBtn" <?php echo !$current_shift_open ? 'disabled' : ''; ?>>Absen Keluar</button>
-                </form>
+                <div class="settings-attendance-panel">
+                    <!-- Header -->
+                    <div class="settings-attendance-header">
+                        <div class="settings-attendance-header-left">
+                            <h4 class="settings-attendance-title">
+                                <i class="fas fa-fingerprint me-1"></i>
+                                Attendance
+                            </h4>
+                            <p class="settings-attendance-subtitle">
+                                Catat Absen Masuk dan Pulang kerja Anda. Riwayat ditampilkan di bawah.
+                            </p>
+                        </div>
+                        <div class="settings-attendance-header-right">
+                            <span id="settingsAttendanceStatusBadge"
+                                  class="settings-attendance-status-inline <?php echo $current_shift_open ? 'online' : 'offline'; ?>">
+                                <span class="settings-attendance-status-dot"></span>
+                                <?php echo $current_shift_open ? 'On Duty' : 'Off Duty'; ?>
+                            </span>
+                            <?php if ($current_shift_open) { ?>
+                                <div class="settings-attendance-live-duration" id="settingsLiveDuration">
+                                    <i class="fas fa-hourglass-half"></i>
+                                    <span class="settings-attendance-live-duration-label">Durasi:</span>
+                                    <span class="settings-attendance-live-duration-value" id="settingsLiveDurationValue">00:00:00</span>
+                                </div>
+                            <?php } ?>
+                        </div>
+                    </div>
 
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered">
-                        <thead><tr><th>Absen Masuk</th><th>Absen Keluar</th></tr></thead>
-                        <tbody id="settingsAttendanceHistoryBody">
-                        <?php if (count($my_attendance_logs) === 0) { ?>
-                            <tr><td colspan="2" class="text-center text-muted">Belum ada riwayat absensi.</td></tr>
-                        <?php } else { foreach ($my_attendance_logs as $log) { ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($log['clock_in_at']); ?></td>
-                                <td><?php echo $log['clock_out_at'] ? htmlspecialchars($log['clock_out_at']) : '<span class="badge bg-warning text-dark">Belum Keluar</span>'; ?></td>
-                            </tr>
-                        <?php }} ?>
-                        </tbody>
-                    </table>
+                    <!-- Action Buttons -->
+                    <div class="settings-attendance-actions">
+                        <span class="settings-attendance-actions-label">Aksi:</span>
+                        <form method="POST" action="settings.php" id="settingsAttendanceForm"
+                              style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:center;">
+                            <button type="submit" name="action" value="clock_in"
+                                    id="settingsClockInBtn"
+                                    class="btn-minimalist btn-minimalist-success btn-minimalist-sm"
+                                    <?php echo $current_shift_open ? 'disabled' : ''; ?>
+                                    title="Catat Absen Masuk">
+                                <i class="fas fa-sign-in-alt"></i> Absen Masuk
+                            </button>
+                            <button type="submit" name="action" value="clock_out"
+                                    id="settingsClockOutBtn"
+                                    class="btn-minimalist btn-minimalist-danger btn-minimalist-sm"
+                                    <?php echo !$current_shift_open ? 'disabled' : ''; ?>
+                                    title="Catat Absen Pulang">
+                                <i class="fas fa-sign-out-alt"></i> Absen Pulang
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- History Table -->
+                    <div class="settings-attendance-history-section">
+                        <div class="settings-attendance-history-header">
+                            <h6 class="settings-attendance-history-title" style="margin-bottom:0;">
+                                <i class="fas fa-history me-1"></i> Riwayat Absensi
+                            </h6>
+                            <a href="settings.php?attendance_export=csv"
+                               class="btn-minimalist-export"
+                               title="Unduh laporan absensi bulan ini dalam format CSV">
+                                <i class="fas fa-download"></i> Download Laporan
+                            </a>
+                        </div>
+
+                        <div class="settings-attendance-table-wrap">
+                            <div class="settings-attendance-table-scroll" id="settingsAttendanceScrollContainer">
+                                <table class="settings-attendance-table" id="settingsAttendanceTable">
+                                    <thead>
+                                        <tr>
+                                            <th class="col-date"><i class="fas fa-calendar-alt me-1 text-muted"></i>Tanggal</th>
+                                            <th class="col-in"><i class="fas fa-sign-in-alt me-1 text-muted"></i>Absen Masuk</th>
+                                            <th class="col-out"><i class="fas fa-sign-out-alt me-1 text-muted"></i>Absen Keluar</th>
+                                            <th class="col-dur"><i class="fas fa-stopwatch me-1 text-muted"></i>Durasi</th>
+                                            <th class="col-status"><i class="fas fa-circle me-1 text-muted"></i>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="settingsAttendanceHistoryBody">
+                                    <?php
+                                    if (count($my_attendance_logs) === 0) { ?>
+                                        <tr>
+                                            <td colspan="5" class="cell-empty">
+                                                <i class="fas fa-calendar-times mb-2 d-block" style="font-size:1.5rem;opacity:0.4;"></i>
+                                                Belum ada riwayat absensi.
+                                            </td>
+                                        </tr>
+                                    <?php } else {
+                                        $displayed_dates = [];
+                                        foreach ($my_attendance_logs as $log) {
+                                            $clockInRaw = $log['clock_in_at'] ?? null;
+                                            $clockOutRaw = $log['clock_out_at'] ?? null;
+                                            $logDate = $log['date'] ?? null;
+                                            $onDuty = !empty($clockInRaw) && empty($clockOutRaw);
+                                            $durationDisplay = '—';
+                                            if (!empty($clockInRaw)) {
+                                                if (!empty($clockOutRaw)) {
+                                                    $diff = max(0, strtotime($clockOutRaw) - strtotime($clockInRaw));
+                                                    $h = floor($diff / 3600);
+                                                    $m = floor(($diff % 3600) / 60);
+                                                    $s = $diff % 60;
+                                                    $durationDisplay = sprintf('%02d:%02d:%02d', $h, $m, $s);
+                                                } else {
+                                                    $diff = max(0, time() - strtotime($clockInRaw));
+                                                    $h = floor($diff / 3600);
+                                                    $m = floor(($diff % 3600) / 60);
+                                                    $s = $diff % 60;
+                                                    $durationDisplay = sprintf('%02d:%02d:%02d', $h, $m, $s);
+                                                }
+                                            }
+                                            $logDateDisplay = !empty($logDate) ? date('d/m/Y', strtotime((string) $logDate)) : '—';
+                                            $clockInDisplay = !empty($clockInRaw) ? date('H:i:s', strtotime((string) $clockInRaw)) : '—';
+                                            $clockOutDisplay = !empty($clockOutRaw) ? date('H:i:s', strtotime((string) $clockOutRaw)) : '<span style="color:#d97706;font-weight:600;">Belum Keluar</span>';
+                                            $dayKey = !empty($logDate) ? date('Y-m-d', strtotime((string) $logDate)) : '';
+                                            $showDateMerge = $dayKey !== '' && !isset($displayed_dates[$dayKey]);
+                                            if ($dayKey !== '') $displayed_dates[$dayKey] = true;
+                                            $dayLabel = !empty($logDate) ? strftime('%A, %d %B %Y', strtotime((string) $logDate)) : 'Tanggal Tidak Diketahui';
+                                            ?>
+                                            <?php if ($showDateMerge) { ?>
+                                            <tr class="date-merge-row">
+                                                <td colspan="5"><i class="fas fa-calendar-week me-1"></i><?php echo htmlspecialchars(ucfirst($dayLabel)); ?></td>
+                                            </tr>
+                                            <?php } ?>
+                                            <tr data-settings-attendance-open="<?php echo $onDuty ? '1' : '0'; ?>"
+                                                data-clock-in="<?php echo htmlspecialchars((string) ($clockInRaw ?? '')); ?>">
+                                                <td class="cell-date"><?php echo htmlspecialchars($logDateDisplay); ?></td>
+                                                <td class="cell-time"><?php echo htmlspecialchars($clockInDisplay); ?></td>
+                                                <td class="cell-time"><?php echo $clockOutDisplay; ?></td>
+                                                <td class="cell-dur"><?php echo htmlspecialchars($durationDisplay); ?></td>
+                                                <td>
+                                                    <span class="badge-shift <?php echo $onDuty ? 'on-duty' : 'off-duty'; ?>">
+                                                        <?php if ($onDuty) { ?>
+                                                            <i class="fas fa-circle" style="font-size:0.4rem;"></i> On Duty
+                                                        <?php } else { ?>
+                                                            <i class="fas fa-check" style="font-size:0.6rem;"></i> Selesai
+                                                        <?php } ?>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        <?php }} ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         <?php } ?>

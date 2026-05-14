@@ -1037,7 +1037,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   border-color: #1d4ed8;
 }
 
-/* Muted gray outline Batal button — distinct from primary/security actions */
+/* Muted gray outline Batal button â distinct from primary/security actions */
 .btn-profile-outline-batal {
   border: 0.0625rem solid #94a3b8;
   color: #64748b;
@@ -1253,8 +1253,12 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .settings-security-pane-desc {
@@ -1485,7 +1489,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 /* ============================================================
    MINIMALIST OUTLINE BUTTON SYSTEM
    Transparent bg + 1-2px colored border + colored text.
-   Hover → solid bg + white text (0.3s ease-in-out).
+   Hover â solid bg + white text (0.3s ease-in-out).
    ============================================================ */
 
 .btn-minimalist,
@@ -1515,8 +1519,14 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   border: 0.125rem solid transparent;
 }
 
-.btn-minimalist:active { transform: scale(0.97); }
-.btn-minimalist:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+.btn-minimalist:active {
+  transform: scale(0.97);
+}
+.btn-minimalist:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
 
 /* Success / Green */
 .btn-minimalist-success {
@@ -1631,7 +1641,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 /* ============================================================
-   SETTINGS ATTENDANCE — REDESIGNED
+   SETTINGS ATTENDANCE â REDESIGNED
    ============================================================ */
 
 .settings-attendance-panel {
@@ -1734,7 +1744,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 .settings-attendance-live-duration-value {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 1rem;
   color: #059669;
   letter-spacing: 0.05em;
@@ -1811,11 +1821,21 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   border-bottom: none;
 }
 
-.settings-attendance-table .col-date { width: 22%; }
-.settings-attendance-table .col-in { width: 24%; }
-.settings-attendance-table .col-out { width: 24%; }
-.settings-attendance-table .col-dur { width: 20%; }
-.settings-attendance-table .col-status { width: 10%; }
+.settings-attendance-table .col-date {
+  width: 22%;
+}
+.settings-attendance-table .col-in {
+  width: 24%;
+}
+.settings-attendance-table .col-out {
+  width: 24%;
+}
+.settings-attendance-table .col-dur {
+  width: 20%;
+}
+.settings-attendance-table .col-status {
+  width: 10%;
+}
 
 .settings-attendance-table .cell-date {
   font-weight: 600;
@@ -1823,13 +1843,13 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 .settings-attendance-table .cell-time {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-size: 0.8125rem;
   color: #334155;
 }
 
 .settings-attendance-table .cell-dur {
-  font-family: 'Courier New', monospace;
+  font-family: "Courier New", monospace;
   font-weight: 700;
   color: #0369a1;
 }
@@ -1884,8 +1904,14 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
     box-shadow 0.2s ease;
 }
 
-.attendance-cashier-widget .btn-minimalist-attendance:active { transform: scale(0.97); }
-.attendance-cashier-widget .btn-minimalist-attendance:disabled { opacity: 0.55; cursor: not-allowed; transform: none !important; }
+.attendance-cashier-widget .btn-minimalist-attendance:active {
+  transform: scale(0.97);
+}
+.attendance-cashier-widget .btn-minimalist-attendance:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
 
 .attendance-cashier-widget .btn-attendance-clock-in {
   background: transparent;
@@ -3707,3 +3733,92 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
     font-size: 24px;
   }
 }
+
+/* ── SETTINGS ATTENDANCE TABLE ENHANCEMENTS ── */
+
+/* Scrollable table wrapper with max-height */
+.settings-attendance-table-wrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* Scrollable container with thin muted-gray scrollbar */
+.settings-attendance-table-scroll {
+  max-height: 500px;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+/* Thin muted gray scrollbar */
+.settings-attendance-table-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.settings-attendance-table-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.settings-attendance-table-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+.settings-attendance-table-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Sticky header */
+.settings-attendance-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #f8fafc;
+}
+
+/* Date merge row */
+.date-merge-row {
+  background-color: #f1f5f9;
+}
+.date-merge-row td {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  padding: 0.4rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Shift status badge */
+.badge-shift {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge-shift.on-duty {
+  background-color: rgba(34, 197, 94, 0.12);
+  color: #065f46;
+}
+.badge-shift.off-duty {
+  background-color: rgba(107, 114, 128, 0.12);
+  color: #475569;
+}
+
+/* Inline status dot animation */
+.settings-attendance-status-inline.online .settings-attendance-status-dot {
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+/* ÄÄ SETTINGS ATTENDANCE TABLE ENHANCEMENTS ÄÄ */

@@ -460,6 +460,91 @@
   document.addEventListener("DOMContentLoaded", bindSettingsAttendanceForm);
 })();
 
+/* --- SETTINGS ATTENDANCE LIVE DURATION TIMER --- */
+(function settingsAttendanceLiveDurationLogic() {
+  let timerInterval = null;
+
+  function formatDuration(seconds) {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+
+  function getClockInFromRow() {
+    const openRow = document.querySelector(
+      "#settingsAttendanceHistoryBody tr[data-settings-attendance-open='1']",
+    );
+    if (!openRow) return null;
+    const clockInRaw = openRow.dataset.clockIn || "";
+    if (!clockInRaw) return null;
+    const date = new Date(clockInRaw.replace(" ", "T"));
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  function tick() {
+    const clockInDate = getClockInFromRow();
+    if (!clockInDate) {
+      stopTimer();
+      return;
+    }
+    const elapsed = Math.floor((Date.now() - clockInDate.getTime()) / 1000);
+    const durationEl = document.getElementById("settingsLiveDurationValue");
+    if (durationEl) {
+      durationEl.textContent = formatDuration(elapsed);
+    }
+  }
+
+  function startTimer() {
+    if (timerInterval) return;
+    tick();
+    timerInterval = setInterval(tick, 1000);
+  }
+
+  function stopTimer() {
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
+  }
+
+  function checkAndStartTimer() {
+    const durationEl = document.getElementById("settingsLiveDurationValue");
+    const durationContainer = document.getElementById("settingsLiveDuration");
+    const clockInDate = getClockInFromRow();
+    if (clockInDate && durationEl) {
+      if (durationContainer) durationContainer.style.display = "";
+      startTimer();
+    } else {
+      if (durationEl) durationEl.textContent = "00:00:00";
+      stopTimer();
+    }
+  }
+
+  function observeAttendanceTable() {
+    const tbody = document.getElementById("settingsAttendanceHistoryBody");
+    if (!tbody) return;
+
+    if (typeof MutationObserver !== "undefined") {
+      const observer = new MutationObserver(() => {
+        checkAndStartTimer();
+      });
+      observer.observe(tbody, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["data-settings-attendance-open"],
+      });
+      checkAndStartTimer();
+    } else {
+      document.addEventListener("DOMContentLoaded", checkAndStartTimer);
+      if (document.readyState !== "loading") checkAndStartTimer();
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", observeAttendanceTable);
+})();
+
 /* --- SETTINGS PANEL TOGGLE LOGIC --- */
 (function settingsPanelToggleLogic() {
   function bindSettingsPanelToggle() {
@@ -580,6 +665,16 @@
         }
       });
     });
+
+    /* ── Hashchange listener: handle browser back/forward and direct links ── */
+    window.addEventListener("hashchange", () => {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (hash && panelMap.has(hash)) {
+        openPanel(hash);
+      } else if (!hash) {
+        openPanel("");
+      }
+    });
   }
 
   document.addEventListener("DOMContentLoaded", bindSettingsPanelToggle);
@@ -588,8 +683,8 @@
 /* --- GLOBAL PASSWORD TOGGLE VISIBILITY --- */
 (function globalPasswordToggleLogic() {
   function bindPasswordToggle() {
-    document.querySelectorAll(".password-toggle-btn").forEach(function(btn) {
-      btn.addEventListener("click", function() {
+    document.querySelectorAll(".password-toggle-btn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
         var targetId = btn.dataset.toggleTarget;
         if (!targetId) return;
 
@@ -605,7 +700,10 @@
           btn.classList.toggle("is-visible", !isPassword);
         }
 
-        btn.setAttribute("aria-label", isPassword ? "Sembunyikan password" : "Tampilkan password");
+        btn.setAttribute(
+          "aria-label",
+          isPassword ? "Sembunyikan password" : "Tampilkan password",
+        );
         input.focus();
       });
     });
@@ -647,7 +745,10 @@
           var fallbackIcon = document.createElement("i");
           fallbackIcon.className = "fas fa-user";
           fallbackIcon.setAttribute("aria-hidden", "true");
-          headerAvatarContainer.insertBefore(fallbackIcon, headerAvatarContainer.querySelector(".header-profile-avatar-sync"));
+          headerAvatarContainer.insertBefore(
+            fallbackIcon,
+            headerAvatarContainer.querySelector(".header-profile-avatar-sync"),
+          );
         }
         headerAvatarContainer.classList.remove("is-syncing");
         return;
@@ -665,29 +766,39 @@
       avatarImage.alt = "Profile";
       avatarImage.src = safeSrc;
 
-      avatarImage.addEventListener("load", function() {
-        headerAvatarContainer.classList.remove("is-syncing");
-      }, { once: true });
-      avatarImage.addEventListener("error", function() {
-        headerAvatarContainer.classList.remove("is-syncing");
-      }, { once: true });
+      avatarImage.addEventListener(
+        "load",
+        function () {
+          headerAvatarContainer.classList.remove("is-syncing");
+        },
+        { once: true },
+      );
+      avatarImage.addEventListener(
+        "error",
+        function () {
+          headerAvatarContainer.classList.remove("is-syncing");
+        },
+        { once: true },
+      );
 
       if (existingImage) {
         existingImage.src = safeSrc;
         headerAvatarContainer.classList.remove("is-syncing");
       } else {
-        var syncIndicator = headerAvatarContainer.querySelector(".header-profile-avatar-sync");
+        var syncIndicator = headerAvatarContainer.querySelector(
+          ".header-profile-avatar-sync",
+        );
         headerAvatarContainer.insertBefore(avatarImage, syncIndicator);
       }
     }
 
-    input.addEventListener("change", function() {
+    input.addEventListener("change", function () {
       var file = input.files && input.files[0] ? input.files[0] : null;
       if (!file) return;
 
       var reader = new FileReader();
-      reader.onload = function(event) {
-        var imageSrc = String(event.target && event.target.result || "");
+      reader.onload = function (event) {
+        var imageSrc = String((event.target && event.target.result) || "");
         preview.src = imageSrc;
         preview.classList.remove("hidden");
         placeholder.classList.add("hidden");
@@ -778,9 +889,14 @@
       }
 
       /* Full-screen recovery mode: hide the nav buttons when forgot-password pane is active. */
-      const securityMenu = profilePanel.querySelector(".settings-security-menu");
+      const securityMenu = profilePanel.querySelector(
+        ".settings-security-menu",
+      );
       if (securityMenu) {
-        securityMenu.classList.toggle("is-hidden", activePane === "forgot-password");
+        securityMenu.classList.toggle(
+          "is-hidden",
+          activePane === "forgot-password",
+        );
       }
 
       if (persist) {
@@ -814,118 +930,160 @@
     });
 
     /* Also bind back buttons inside forgot-password pane */
-    profilePanel.querySelectorAll(".settings-security-back-btn").forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        setView("security");
-        setPane(btn.dataset.securityPaneTarget || defaultPane);
+    profilePanel
+      .querySelectorAll(".settings-security-back-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          setView("security");
+          setPane(btn.dataset.securityPaneTarget || defaultPane);
+        });
       });
-    });
 
     /* Kembali in Reset Password / Reset Pertanyaan panes:
        Returns to the 3-menu security view (reset-password pane). */
-    profilePanel.querySelectorAll('[data-action="reset-password-back"]').forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        setPane("reset-password");
+    profilePanel
+      .querySelectorAll('[data-action="reset-password-back"]')
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          setPane("reset-password");
+        });
       });
-    });
 
     /* Kembali inside Lupa Password (Stage 1 & Stage 2):
        MUST clear PHP session verification flag, then return to 3-menu security view. */
-    profilePanel.querySelectorAll('[data-action="forgot-back-to-security"]').forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        /* Immediately clear PHP verification session so user cannot skip re-verification on next entry */
-        fetch("settings.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "action=forgot_password_reset_session&ajax=1"
-        }).catch(function() {});
-        /* Then navigate UI */
-        const securityMenu = profilePanel.querySelector(".settings-security-menu");
-        if (securityMenu) securityMenu.classList.remove("is-hidden");
-        setPane("reset-password");
+    profilePanel
+      .querySelectorAll('[data-action="forgot-back-to-security"]')
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          /* Immediately clear PHP verification session so user cannot skip re-verification on next entry */
+          fetch("settings.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "action=forgot_password_reset_session&ajax=1",
+          }).catch(function () {});
+          /* Then navigate UI */
+          const securityMenu = profilePanel.querySelector(
+            ".settings-security-menu",
+          );
+          if (securityMenu) securityMenu.classList.remove("is-hidden");
+          setPane("reset-password");
+        });
       });
-    });
 
     /* Batal Stage 1 (Pilih Pertanyaan + Jawab):
        Total clear — wipe PHP session + sessionStorage + go to My Profile. */
-    profilePanel.querySelectorAll('[data-action="forgot-batal-stage1"]').forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        /* Immediately clear PHP session verification flag */
-        fetch("settings.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "action=forgot_password_reset_session&ajax=1"
-        }).catch(function() {});
-        /* Clear local inputs and sessionStorage */
-        const paneCard = btn.closest('.settings-security-pane-card');
-        if (paneCard) {
-          paneCard.querySelectorAll('input[type="text"], input[type="password"]').forEach((input) => { input.value = ''; });
-          paneCard.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
-          paneCard.querySelectorAll('.alert-danger, .alert-success').forEach((alert) => { alert.remove(); });
-        }
-        window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
-        window.sessionStorage.removeItem("kasirPintarProfileSubview");
-        const securityMenu = profilePanel.querySelector(".settings-security-menu");
-        if (securityMenu) securityMenu.classList.remove("is-hidden");
-        setView("main");
+    profilePanel
+      .querySelectorAll('[data-action="forgot-batal-stage1"]')
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          /* Immediately clear PHP session verification flag */
+          fetch("settings.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "action=forgot_password_reset_session&ajax=1",
+          }).catch(function () {});
+          /* Clear local inputs and sessionStorage */
+          const paneCard = btn.closest(".settings-security-pane-card");
+          if (paneCard) {
+            paneCard
+              .querySelectorAll('input[type="text"], input[type="password"]')
+              .forEach((input) => {
+                input.value = "";
+              });
+            paneCard.querySelectorAll("select").forEach((select) => {
+              select.selectedIndex = 0;
+            });
+            paneCard
+              .querySelectorAll(".alert-danger, .alert-success")
+              .forEach((alert) => {
+                alert.remove();
+              });
+          }
+          window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
+          window.sessionStorage.removeItem("kasirPintarProfileSubview");
+          const securityMenu = profilePanel.querySelector(
+            ".settings-security-menu",
+          );
+          if (securityMenu) securityMenu.classList.remove("is-hidden");
+          setView("main");
+        });
       });
-    });
 
     /* Simpan Tanpa Perubahan (Stage 2 Set Password Baru):
        No DB write. Clears local state + PHP session + returns to My Profile. */
-    profilePanel.querySelectorAll('[data-action="forgot-no-change"]').forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        /* Clear PHP session verification flag — user must re-verify on next entry */
-        fetch("settings.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: "action=forgot_password_reset_session&ajax=1"
-        }).catch(function() {});
-        /* Wipe all local sessionStorage flags */
-        window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
-        window.sessionStorage.removeItem("kasirPintarProfileSubview");
-        /* Clear any inputs in the current form */
-        const paneCard = btn.closest('.settings-security-pane-card');
-        if (paneCard) {
-          paneCard.querySelectorAll('input[type="text"], input[type="password"]').forEach((input) => { input.value = ''; });
-          paneCard.querySelectorAll('select').forEach((select) => { select.selectedIndex = 0; });
-          paneCard.querySelectorAll('.alert-danger, .alert-success').forEach((alert) => { alert.remove(); });
-        }
-        /* Show 3 nav buttons, exit to My Profile */
-        const securityMenu = profilePanel.querySelector(".settings-security-menu");
-        if (securityMenu) securityMenu.classList.remove("is-hidden");
-        setView("main");
+    profilePanel
+      .querySelectorAll('[data-action="forgot-no-change"]')
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          /* Clear PHP session verification flag — user must re-verify on next entry */
+          fetch("settings.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: "action=forgot_password_reset_session&ajax=1",
+          }).catch(function () {});
+          /* Wipe all local sessionStorage flags */
+          window.sessionStorage.removeItem("kasirPintarProfileSecurityPane");
+          window.sessionStorage.removeItem("kasirPintarProfileSubview");
+          /* Clear any inputs in the current form */
+          const paneCard = btn.closest(".settings-security-pane-card");
+          if (paneCard) {
+            paneCard
+              .querySelectorAll('input[type="text"], input[type="password"]')
+              .forEach((input) => {
+                input.value = "";
+              });
+            paneCard.querySelectorAll("select").forEach((select) => {
+              select.selectedIndex = 0;
+            });
+            paneCard
+              .querySelectorAll(".alert-danger, .alert-success")
+              .forEach((alert) => {
+                alert.remove();
+              });
+          }
+          /* Show 3 nav buttons, exit to My Profile */
+          const securityMenu = profilePanel.querySelector(
+            ".settings-security-menu",
+          );
+          if (securityMenu) securityMenu.classList.remove("is-hidden");
+          setView("main");
+        });
       });
-    });
 
     /* Batal button for non-forgot-password security panes (Reset Password, Reset Pertanyaan).
        Clears inputs and exits to main profile. */
-    profilePanel.querySelectorAll('[data-action="security-batal"]').forEach((btn) => {
-      btn.addEventListener("click", (event) => {
-        event.preventDefault();
-        /* Clear all input fields within this pane's form */
-        const paneCard = btn.closest('.settings-security-pane-card');
-        if (paneCard) {
-          paneCard.querySelectorAll('input[type="text"], input[type="password"]').forEach((input) => {
-            input.value = '';
-          });
-          paneCard.querySelectorAll('select').forEach((select) => {
-            /* Reset to first option (usually "-- Pilih --" placeholder) */
-            select.selectedIndex = 0;
-          });
-          paneCard.querySelectorAll('.alert-danger, .alert-success').forEach((alert) => {
-            alert.remove();
-          });
-        }
-        /* Exit to main profile view */
-        setView("main");
+    profilePanel
+      .querySelectorAll('[data-action="security-batal"]')
+      .forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          event.preventDefault();
+          /* Clear all input fields within this pane's form */
+          const paneCard = btn.closest(".settings-security-pane-card");
+          if (paneCard) {
+            paneCard
+              .querySelectorAll('input[type="text"], input[type="password"]')
+              .forEach((input) => {
+                input.value = "";
+              });
+            paneCard.querySelectorAll("select").forEach((select) => {
+              /* Reset to first option (usually "-- Pilih --" placeholder) */
+              select.selectedIndex = 0;
+            });
+            paneCard
+              .querySelectorAll(".alert-danger, .alert-success")
+              .forEach((alert) => {
+                alert.remove();
+              });
+          }
+          /* Exit to main profile view */
+          setView("main");
+        });
       });
-    });
 
     securityForms.forEach((form) => {
       form.addEventListener("submit", () => {
