@@ -110,6 +110,7 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $security_answer = trim($_POST['security_answer'] ?? '');
         $new_password = $_POST['new_password'] ?? '';
         $cashier_id_input = preg_replace('/\D/', '', (string) ($_POST['cashier_id'] ?? ''));
+        $profile_photo_file = $_FILES['profile_photo'] ?? null;
 
         if ($nama_lengkap === '') {
             $error_message = 'Nama lengkap wajib diisi.';
@@ -138,6 +139,51 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 "security_answer = '$safe_answer_hash'"
             ];
 
+            if ($profile_photo_file && ($profile_photo_file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                if (($profile_photo_file['error'] ?? UPLOAD_ERR_OK) !== UPLOAD_ERR_OK) {
+                    $error_message = 'Gagal mengunggah foto profil.';
+                } else {
+                    $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+                    $original_name = (string) ($profile_photo_file['name'] ?? '');
+                    $file_extension = strtolower(pathinfo($original_name, PATHINFO_EXTENSION));
+                    $tmp_name = (string) ($profile_photo_file['tmp_name'] ?? '');
+                    $image_info = $tmp_name !== '' ? @getimagesize($tmp_name) : false;
+
+                    if (!in_array($file_extension, $allowed_extensions, true) || $image_info === false) {
+                        $error_message = 'File foto profil harus berupa gambar yang valid.';
+                    } else {
+                        $existing_photo_result = $conn->query("SELECT profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
+                        $existing_photo = '';
+                        if ($existing_photo_result && $existing_photo_result->num_rows === 1) {
+                            $existing_photo = (string) ($existing_photo_result->fetch_assoc()['profile_photo'] ?? '');
+                        }
+
+                        $new_profile_photo = sprintf(
+                            'profile_%d_%s.%s',
+                            $current_user_id,
+                            bin2hex(random_bytes(4)),
+                            $file_extension,
+                        );
+                        $target_directory = __DIR__ . '/assets/img/';
+                        $target_path = $target_directory . $new_profile_photo;
+
+                        if (!move_uploaded_file($tmp_name, $target_path)) {
+                            $error_message = 'Foto profil tidak dapat disimpan.';
+                        } else {
+                            if ($existing_photo !== '' && $existing_photo !== $new_profile_photo) {
+                                $existing_path = $target_directory . basename($existing_photo);
+                                if (is_file($existing_path)) {
+                                    @unlink($existing_path);
+                                }
+                            }
+
+                            $safe_profile_photo = $conn->real_escape_string($new_profile_photo);
+                            $updates[] = "profile_photo = '$safe_profile_photo'";
+                        }
+                    }
+                }
+            }
+
             if ($is_admin) {
                 if (!preg_match('/^\d{11}$/', $cashier_id_input)) {
                     $error_message = 'ID Kasir harus terdiri dari 11 digit angka.';
@@ -164,7 +210,7 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($error_message === '') {
                 $query = "UPDATE users SET " . implode(', ', $updates) . " WHERE id = $current_user_id LIMIT 1";
                 if ($conn->query($query)) {
-                    $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email FROM users WHERE id = $current_user_id LIMIT 1");
+                    $fresh = $conn->query("SELECT id, username, nama_lengkap, role, cashier_id, contact_number, email, profile_photo FROM users WHERE id = $current_user_id LIMIT 1");
                     if ($fresh && $fresh->num_rows === 1) {
                         loginCashierSession($fresh->fetch_assoc());
                         $current_user = getCurrentCashier();
@@ -373,10 +419,11 @@ $current_user_profile = [
     'cashier_id' => (string) ($current_user['cashier_id'] ?? ''),
     'contact_number' => (string) ($current_user['contact_number'] ?? ''),
     'email' => (string) ($current_user['email'] ?? ''),
+    'profile_photo' => (string) ($current_user['profile_photo'] ?? ''),
 ];
 
 if ($is_logged_in) {
-    $user_profile_result = $conn->query("SELECT username, nama_lengkap, cashier_id, contact_number, email, security_question FROM users WHERE id = $current_user_id LIMIT 1");
+    $user_profile_result = $conn->query("SELECT username, nama_lengkap, cashier_id, contact_number, email, profile_photo, security_question FROM users WHERE id = $current_user_id LIMIT 1");
     if ($user_profile_result && $user_profile_result->num_rows === 1) {
         $user_profile_row = $user_profile_result->fetch_assoc();
         $current_user_profile['username'] = (string) ($user_profile_row['username'] ?? $current_user_profile['username']);
@@ -384,6 +431,7 @@ if ($is_logged_in) {
         $current_user_profile['cashier_id'] = (string) ($user_profile_row['cashier_id'] ?? '');
         $current_user_profile['contact_number'] = (string) ($user_profile_row['contact_number'] ?? '');
         $current_user_profile['email'] = (string) ($user_profile_row['email'] ?? '');
+        $current_user_profile['profile_photo'] = (string) ($user_profile_row['profile_photo'] ?? '');
         $saved_question = trim((string) ($user_profile_row['security_question'] ?? ''));
         if (in_array($saved_question, $security_question_options, true)) {
             $selected_security_question = $saved_question;
@@ -474,18 +522,39 @@ if ($is_logged_in) {
 
         <?php if ($is_logged_in) { ?>
             <div class="panel settings-panel settings-panel--profile" id="my-profile" data-settings-panel="my-profile" aria-hidden="true">
-                <div class="settings-profile-header">
-                    <div class="settings-profile-avatar" aria-hidden="true">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="settings-profile-heading">
-                        <h5><i class="fas fa-id-badge me-2"></i>My Profile</h5>
-                        <small>Perbarui identitas akun, informasi kontak, dan keamanan profil Anda.</small>
-                    </div>
-                </div>
-
-                <form method="POST" action="settings.php" class="settings-form settings-profile-form">
+                <form method="POST" action="settings.php" class="settings-form settings-profile-form" enctype="multipart/form-data">
                     <input type="hidden" name="action" value="update_my_profile">
+
+                    <div class="settings-profile-heading settings-profile-heading--top">
+                        <h5>My Profile</h5>
+                        <small>Perbarui identitas akun, informasi kontak, dan keamanan profil.</small>
+                    </div>
+
+                    <div class="settings-profile-photo-block">
+                        <div class="settings-profile-avatar">
+                            <?php if (!empty($current_user_profile['profile_photo'])) { ?>
+                                <img src="assets/img/<?php echo htmlspecialchars($current_user_profile['profile_photo']); ?>" alt="Foto Profil" class="settings-profile-avatar-image" id="settingsProfileAvatarPreview">
+                                <div class="settings-profile-avatar-placeholder hidden" id="settingsProfileAvatarPlaceholder" aria-hidden="true">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            <?php } else { ?>
+                                <img src="" alt="Foto Profil" class="settings-profile-avatar-image hidden" id="settingsProfileAvatarPreview">
+                                <div class="settings-profile-avatar-placeholder" id="settingsProfileAvatarPlaceholder" aria-hidden="true">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                            <?php } ?>
+
+                            <label for="profilePhotoInput" class="settings-profile-avatar-upload" aria-label="Ubah foto profil">
+                                <i class="fas fa-camera"></i>
+                            </label>
+                        </div>
+                        <input type="file" class="hidden" id="profilePhotoInput" name="profile_photo" accept="image/jpeg,image/png,image/webp,image/gif">
+                    </div>
+
+                    <div class="settings-profile-id-wrap">
+                        <label class="form-label">ID Kasir</label>
+                        <input type="text" class="form-control" name="cashier_id" inputmode="numeric" maxlength="11" pattern="\d{11}" value="<?php echo htmlspecialchars($current_user_profile['cashier_id']); ?>" readonly>
+                    </div>
 
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -503,11 +572,6 @@ if ($is_logged_in) {
                         <div class="col-md-6">
                             <label class="form-label">Alamat Email</label>
                             <input type="email" class="form-control" name="email" placeholder="nama@email.com" value="<?php echo htmlspecialchars($current_user_profile['email']); ?>">
-                        </div>
-                        <div class="col-12">
-                            <label class="form-label">ID Kasir</label>
-                            <input type="text" class="form-control" name="cashier_id" inputmode="numeric" maxlength="11" pattern="\d{11}" value="<?php echo htmlspecialchars($current_user_profile['cashier_id']); ?>" <?php echo $is_admin ? '' : 'readonly'; ?>>
-                            <small class="text-muted"><?php echo $is_admin ? 'Administrator dapat memperbarui ID Kasir 11 digit ini.' : 'ID Kasir bersifat tetap dan hanya dapat diubah oleh Administrator.'; ?></small>
                         </div>
                     </div>
 
@@ -537,8 +601,8 @@ if ($is_logged_in) {
                     </div>
 
                     <div class="settings-profile-actions">
-                        <button class="btn btn-profile-outline-save" type="submit">Simpan Profil</button>
                         <button class="btn btn-profile-outline-security" type="button" data-settings-focus-target="#profileSecuritySection">Keamanan Akun</button>
+                        <button class="btn btn-profile-outline-save" type="submit">Simpan Profil</button>
                     </div>
                 </form>
             </div>

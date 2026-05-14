@@ -585,6 +585,35 @@
   document.addEventListener("DOMContentLoaded", bindSettingsPanelToggle);
 })();
 
+/* --- SETTINGS PROFILE PHOTO PREVIEW LOGIC --- */
+(function settingsProfilePhotoLogic() {
+  function bindSettingsProfilePhotoLogic() {
+    const input = document.getElementById("profilePhotoInput");
+    const preview = document.getElementById("settingsProfileAvatarPreview");
+    const placeholder = document.getElementById(
+      "settingsProfileAvatarPlaceholder",
+    );
+
+    if (!(input instanceof HTMLInputElement) || !preview || !placeholder)
+      return;
+
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0] ? input.files[0] : null;
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        preview.src = String(event.target?.result || "");
+        preview.classList.remove("hidden");
+        placeholder.classList.add("hidden");
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", bindSettingsProfilePhotoLogic);
+})();
+
 /* --- DASHBOARD LOGIC --- */
 (function dashboardLogic() {
   const root = document.getElementById("dashboardPageRoot");

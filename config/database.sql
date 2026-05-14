@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     cashier_id VARCHAR(11) NULL COMMENT 'Admin-managed cashier identifier',
     contact_number VARCHAR(30) NULL COMMENT 'Contact phone number',
     email VARCHAR(150) NULL COMMENT 'Email address',
+    profile_photo VARCHAR(255) NULL COMMENT 'Profile photo filename',
     security_question VARCHAR(255) NULL,
     security_answer VARCHAR(255) NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,

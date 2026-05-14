@@ -39,6 +39,7 @@ function loginCashierSession(array $cashier) {
         'cashier_id' => (string) ($cashier['cashier_id'] ?? ''),
         'contact_number' => (string) ($cashier['contact_number'] ?? ''),
         'email' => (string) ($cashier['email'] ?? ''),
+        'profile_photo' => (string) ($cashier['profile_photo'] ?? ''),
     ];
 }
 

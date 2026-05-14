@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'Username dan password wajib diisi.';
     } else {
         $safe_username = $conn->real_escape_string($username_value);
-        $query = "SELECT id, username, nama_lengkap, role, password, cashier_id, contact_number, email FROM users WHERE username = '$safe_username' AND is_active = 1";
+        $query = "SELECT id, username, nama_lengkap, role, password, cashier_id, contact_number, email, profile_photo FROM users WHERE username = '$safe_username' AND is_active = 1";
         if ($role_filter !== '') {
             $safe_role = $conn->real_escape_string($role_filter);
             $query .= " AND role = '$safe_role'";

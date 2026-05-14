@@ -18,6 +18,7 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
         cashier_id VARCHAR(11) NULL,
         contact_number VARCHAR(30) NULL,
         email VARCHAR(150) NULL,
+        profile_photo VARCHAR(255) NULL,
         security_question VARCHAR(255) NULL,
         security_answer VARCHAR(255) NULL,
         is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -34,6 +35,7 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
     ensureColumnExists($conn, 'users', 'cashier_id', "ALTER TABLE users ADD COLUMN cashier_id VARCHAR(11) NULL AFTER nama_lengkap");
     ensureColumnExists($conn, 'users', 'contact_number', "ALTER TABLE users ADD COLUMN contact_number VARCHAR(30) NULL AFTER cashier_id");
     ensureColumnExists($conn, 'users', 'email', "ALTER TABLE users ADD COLUMN email VARCHAR(150) NULL AFTER contact_number");
+    ensureColumnExists($conn, 'users', 'profile_photo', "ALTER TABLE users ADD COLUMN profile_photo VARCHAR(255) NULL AFTER email");
     ensureColumnExists($conn, 'users', 'security_question', "ALTER TABLE users ADD COLUMN security_question VARCHAR(255) NULL AFTER nama_lengkap");
     ensureColumnExists($conn, 'users', 'security_answer', "ALTER TABLE users ADD COLUMN security_answer VARCHAR(255) NULL AFTER security_question");
     ensureColumnExists($conn, 'users', 'is_active', "ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER nama_lengkap");
