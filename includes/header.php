@@ -43,7 +43,7 @@ if ($is_logged_in_header) {
                         $photo_path = __DIR__ . '/../assets/img/' . $header_user_photo;
                         $photo_t = is_file($photo_path) ? filemtime($photo_path) : time();
                     ?>
-                        <img src="/assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo $photo_t; ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
+                        <img src="/aplikasi-kasir-copy/assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo $photo_t; ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
                     <?php } ?>
                     <span class="header-profile-avatar-sync" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
                 </span>
