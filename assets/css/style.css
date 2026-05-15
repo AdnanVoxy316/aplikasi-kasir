@@ -987,6 +987,11 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   align-items: center;
   justify-content: flex-end;
   margin-top: 1.5rem;
+  padding-bottom: 0.75rem;
+}
+
+.settings-profile-view--main .settings-profile-form {
+  padding-bottom: 0.5rem;
 }
 
 .btn-profile-outline-save,
@@ -3804,16 +3809,31 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 
 /* Date merge row */
 .date-merge-row {
-  background-color: #f1f5f9;
+  background-color: #ffffff;
 }
 .date-merge-row td {
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
   color: #475569;
   text-transform: uppercase;
   letter-spacing: 0.025em;
-  padding: 0.4rem 1rem;
+  padding: 1rem 1rem 0.55rem;
+  border-top: 12px solid #ffffff;
   border-bottom: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+}
+
+.date-merge-row:first-child td {
+  border-top-width: 0;
+  padding-top: 0.55rem;
+}
+
+.date-merge-row + tr td {
+  border-top: none;
+}
+
+.settings-attendance-table tbody tr.date-merge-row:hover {
+  background: transparent;
 }
 
 /* Shift status badge */

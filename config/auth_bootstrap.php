@@ -180,6 +180,56 @@ function ensureColumnExists(mysqli $conn, $table, $column, $alter_sql) {
     }
 }
 
+function attendanceGetIndonesianDayName(int $timestamp): string
+{
+    static $days = [
+        'Sunday' => 'Minggu',
+        'Monday' => 'Senin',
+        'Tuesday' => 'Selasa',
+        'Wednesday' => 'Rabu',
+        'Thursday' => 'Kamis',
+        'Friday' => 'Jumat',
+        'Saturday' => 'Sabtu',
+    ];
+
+    $englishDay = date('l', $timestamp);
+
+    return $days[$englishDay] ?? $englishDay;
+}
+
+function attendanceGetIndonesianMonthName(int $monthNumber): string
+{
+    static $months = [
+        1 => 'Januari',
+        2 => 'Februari',
+        3 => 'Maret',
+        4 => 'April',
+        5 => 'Mei',
+        6 => 'Juni',
+        7 => 'Juli',
+        8 => 'Agustus',
+        9 => 'September',
+        10 => 'Oktober',
+        11 => 'November',
+        12 => 'Desember',
+    ];
+
+    return $months[$monthNumber] ?? (string) $monthNumber;
+}
+
+function attendanceFormatIndonesianDate(int $timestamp, bool $includeYear = false): string
+{
+    $dayName = attendanceGetIndonesianDayName($timestamp);
+    $dayNumber = date('j', $timestamp);
+    $monthName = attendanceGetIndonesianMonthName((int) date('n', $timestamp));
+
+    if ($includeYear) {
+        return sprintf('%s, %s %s %s', $dayName, $dayNumber, $monthName, date('Y', $timestamp));
+    }
+
+    return sprintf('%s, %s %s', $dayName, $dayNumber, $monthName);
+}
+
 function attendanceDurationHms(int $seconds): string
 {
     $safeSeconds = max(0, $seconds);
@@ -196,9 +246,12 @@ function attendanceBuildHistoryRowPayload(string $clockInAt, ?string $clockOutAt
     $clockOutTimestamp = $clockOutAt ? (strtotime($clockOutAt) ?: time()) : time();
     $durationSeconds = max(0, $clockOutTimestamp - $clockInTimestamp);
     $isOpen = empty($clockOutAt);
+    $dateKey = date('Y-m-d', $clockInTimestamp);
 
     return [
-        'date_label' => date('l, d M', $clockInTimestamp),
+        'date_key' => $dateKey,
+        'date_label' => attendanceFormatIndonesianDate($clockInTimestamp, false),
+        'group_label' => attendanceFormatIndonesianDate($clockInTimestamp, true),
         'clock_in_time' => date('H:i:s', $clockInTimestamp),
         'clock_out_time' => $clockOutAt ? date('H:i:s', $clockOutTimestamp) : '--:--:--',
         'duration_hms' => attendanceDurationHms($durationSeconds),

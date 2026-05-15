@@ -623,6 +623,49 @@ if ($is_cashier) {
     }
 }
 
+if (isset($_GET['attendance_export']) && $_GET['attendance_export'] === 'csv') {
+    if (!$is_cashier) {
+        http_response_code(403);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo 'Ekspor absensi hanya tersedia untuk akun kasir.';
+        exit;
+    }
+
+    $filename = 'riwayat-absensi-' . date('Y-m-d') . '.csv';
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $filename . '"');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+
+    $output = fopen('php://output', 'w');
+    if ($output !== false) {
+        fprintf($output, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        fputcsv($output, ['Tanggal', 'Absen Masuk', 'Absen Keluar', 'Durasi', 'Status']);
+
+        foreach ($my_attendance_logs as $log) {
+            $clockInRaw = (string) ($log['clock_in'] ?? '');
+            if ($clockInRaw === '') {
+                continue;
+            }
+
+            $clockOutRaw = !empty($log['clock_out']) ? (string) $log['clock_out'] : null;
+            $historyRow = attendanceBuildHistoryRowPayload($clockInRaw, $clockOutRaw);
+
+            fputcsv($output, [
+                (string) ($historyRow['group_label'] ?? ''),
+                (string) ($historyRow['clock_in_time'] ?? ''),
+                (string) ($historyRow['clock_out_time'] ?? ''),
+                (string) ($historyRow['duration_hms'] ?? ''),
+                !empty($historyRow['is_open']) ? 'On Duty' : 'Selesai',
+            ]);
+        }
+
+        fclose($output);
+    }
+
+    exit;
+}
+
 $selected_security_question = $security_question_options[0];
 $current_user_profile = [
     'username' => (string) ($current_user['username'] ?? ''),
@@ -1276,6 +1319,7 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                                             </td>
                                         </tr>
                                     <?php } else { 
+                                        $previousDateKey = null;
                                         foreach ($my_attendance_logs as $log) {
                                             $clockInRaw = (string) ($log['clock_in'] ?? '');
                                             if ($clockInRaw === '') {
@@ -1286,9 +1330,21 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                                             $historyRow = attendanceBuildHistoryRowPayload($clockInRaw, $clockOutRaw);
                                             $onDuty = !empty($historyRow['is_open']);
                                             $statusBadgeClass = $onDuty ? 'on-duty' : 'off-duty';
+                                            $currentDateKey = (string) ($historyRow['date_key'] ?? '');
+                                            $currentGroupLabel = (string) ($historyRow['group_label'] ?? '');
+
+                                            if ($currentDateKey !== '' && $currentDateKey !== $previousDateKey) {
+                                                $previousDateKey = $currentDateKey;
+                                                ?>
+                                                <tr class="date-merge-row" data-date-key="<?php echo htmlspecialchars($currentDateKey); ?>">
+                                                    <td colspan="5"><?php echo htmlspecialchars($currentGroupLabel); ?></td>
+                                                </tr>
+                                                <?php
+                                            }
                                             ?>
                                             <tr data-settings-attendance-open="<?php echo $onDuty ? '1' : '0'; ?>"
-                                                data-clock-in="<?php echo htmlspecialchars($clockInRaw); ?>">
+                                                data-clock-in="<?php echo htmlspecialchars($clockInRaw); ?>"
+                                                data-date-key="<?php echo htmlspecialchars($currentDateKey); ?>">
                                                 <td class="cell-date"><?php echo htmlspecialchars((string) ($historyRow['date_label'] ?? '—')); ?></td>
                                                 <td class="cell-time"><?php echo htmlspecialchars((string) ($historyRow['clock_in_time'] ?? '—')); ?></td>
                                                 <td class="cell-time"><?php echo htmlspecialchars((string) ($historyRow['clock_out_time'] ?? '--:--:--')); ?></td>

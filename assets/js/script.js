@@ -350,6 +350,26 @@
     if (emptyRow) emptyRow.remove();
   }
 
+  function ensureDateGroupRow(historyBody, rowData) {
+    if (!historyBody) return;
+
+    const dateKey = String(rowData?.date_key || "").trim();
+    const groupLabel = String(rowData?.group_label || "").trim();
+    if (!dateKey || !groupLabel) return;
+
+    const existingGroupRow = historyBody.querySelector(
+      `tr.date-merge-row[data-date-key="${CSS.escape(dateKey)}"]`,
+    );
+    if (existingGroupRow) return;
+
+    const groupRow = document.createElement("tr");
+    groupRow.className = "date-merge-row";
+    groupRow.dataset.dateKey = dateKey;
+    groupRow.innerHTML = `<td colspan="5">${escapeHtml(groupLabel)}</td>`;
+
+    historyBody.prepend(groupRow);
+  }
+
   function normalizeHistoryRow(
     rowData,
     fallbackClockInAt = "",
@@ -400,6 +420,9 @@
       fallbackClockOutAt,
     );
     const row = document.createElement("tr");
+    if (rowData?.date_key) {
+      row.dataset.dateKey = String(rowData.date_key);
+    }
     if (normalized.isOpen) {
       row.dataset.settingsAttendanceOpen = "1";
     }
@@ -429,9 +452,24 @@
     if (!historyBody) return;
 
     removeEmptyHistoryRow(historyBody);
+    ensureDateGroupRow(historyBody, rowData || {});
 
     const row = buildHistoryRowElement(rowData, clockInAt || "", "");
-    historyBody.prepend(row);
+
+    const dateKey = String(
+      rowData?.date_key || row.dataset.dateKey || "",
+    ).trim();
+    const groupRow = dateKey
+      ? historyBody.querySelector(
+          `tr.date-merge-row[data-date-key="${CSS.escape(dateKey)}"]`,
+        )
+      : null;
+
+    if (groupRow) {
+      groupRow.insertAdjacentElement("afterend", row);
+    } else {
+      historyBody.prepend(row);
+    }
   }
 
   function updateClockOutHistoryRow(rowData, clockOutAt) {
