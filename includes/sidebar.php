@@ -49,9 +49,11 @@ $active_cashier_name = $is_logged_in_sidebar
                 <span>Products</span>
             </a>
         </li>
-        <li>
-            <a href="/aplikasi-kasir-copy/reports.php" <?php echo ($current_page === 'reports.php') ? 'class="active"' : ''; ?> <?php echo !$is_logged_in_sidebar ? 'data-guest-lock="1"' : ''; ?>>
-                <i class="fas fa-file-alt"></i>
+        <li class="sidebar-item sidebar-item--reports">
+            <a href="/aplikasi-kasir-copy/reports.php"
+               class="<?php echo trim((($current_page === 'reports.php') ? 'active ' : '') . 'reports-nav-link'); ?>"
+               <?php echo !$is_logged_in_sidebar ? 'data-guest-lock="1"' : ''; ?>>
+                <i class="fas fa-chart-pie"></i>
                 <span>Reports</span>
             </a>
         </li>

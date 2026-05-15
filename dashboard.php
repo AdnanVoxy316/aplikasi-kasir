@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
             'clock_in' => $result['clock_in_at'] ?? null,
             'clock_out' => $result['clock_out_at'] ?? null,
             'total_hours' => round(((int) ($result['duration_seconds'] ?? 0)) / 3600, 2),
+            'clock_in_ts' => !empty($result['clock_in_at']) ? strtotime($result['clock_in_at']) : null,
         ];
 
         attendanceRespondJson([
@@ -99,18 +100,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
                     'clock_out' => $clockOut,
                     'total_hours' => round($seconds / 3600, 2),
                     'status' => $clockOut ? 'Pulang' : 'Masuk',
+                    'clock_in_ts' => $clockIn !== '' ? strtotime($clockIn) : null,
                 ];
             }
         }
 
+        $clockInTs = !empty($row['clock_in']) ? strtotime($row['clock_in']) : null;
+
         attendanceRespondJson([
             'success' => true,
-            'attendance' => $row ?: [
+            'attendance' => $row ? array_merge($row, ['clock_in_ts' => $clockInTs]) : [
                 'date' => $today,
                 'clock_in' => null,
                 'clock_out' => null,
                 'total_hours' => 0,
                 'status' => 'Pulang',
+                'clock_in_ts' => null,
             ],
         ]);
     }
@@ -352,19 +357,6 @@ if ($is_admin) {
                 </div>
             </div>
 
-            <div class="row">
-                <div class="col-12">
-                    <div class="stat-card">
-                        <h6 class="stat-card-title">Kasir Pintar Dashboard</h6>
-                        <p class="dashboard-welcome-text">
-                            <?php echo $is_guest_mode
-                                ? 'Welcome Guest. Gunakan menu Settings untuk memilih login sebagai kasir atau administrator.'
-                                : 'Selamat datang kembali! Semua fitur sudah terbuka untuk role Anda.'; ?>
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             <?php if ($is_cashier) { ?>
                 <div class="row mt-4">
                     <div class="col-12">
@@ -375,6 +367,7 @@ if ($is_admin) {
                             data-clock-out="<?php echo htmlspecialchars((string) ($attendanceToday['clock_out'] ?? '')); ?>"
                             data-status="<?php echo htmlspecialchars((string) ($attendanceToday['status'] ?? 'Pulang')); ?>"
                             data-total-hours="<?php echo htmlspecialchars((string) ($attendanceToday['total_hours'] ?? 0)); ?>"
+                            data-clock-in-ts="<?php echo isset($attendanceToday['clock_in']) && $attendanceToday['clock_in'] ? strtotime($attendanceToday['clock_in']) : ''; ?>"
                         >
                             <div class="attendance-card-header">
                                 <div>

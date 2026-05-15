@@ -1399,22 +1399,24 @@
       clockOut: cashierWidget.dataset.clockOut || "",
       totalHours: Number(cashierWidget.dataset.totalHours || 0) || 0,
       durationSeconds: 0,
+      clockInTs: 0,
     };
 
     function recomputeDurationSeconds() {
-      if (state.status === "Masuk" && state.clockIn) {
-        const startTime = new Date(
-          String(state.clockIn).replace(" ", "T"),
-        ).getTime();
-        if (!Number.isNaN(startTime)) {
+      if (state.status === "Masuk") {
+        // Prefer state.clockInTs (from API response), fall back to HTML data attribute
+        const ts = state.clockInTs || Number(cashierWidget.dataset.clockInTs) || 0;
+        if (ts > 0) {
+          state.clockInTs = ts;
           state.durationSeconds = Math.max(
             0,
-            Math.floor((Date.now() - startTime) / 1000),
+            Math.floor((Date.now() / 1000) - ts),
           );
           return;
         }
       }
 
+      state.clockInTs = 0;
       state.durationSeconds = Math.round(
         (Number(state.totalHours) || 0) * 3600,
       );
@@ -1444,6 +1446,7 @@
       state.clockIn = attendance.clock_in || "";
       state.clockOut = attendance.clock_out || "";
       state.totalHours = Number(attendance.total_hours || 0) || 0;
+      state.clockInTs = Number(attendance.clock_in_ts || 0) || 0;
       recomputeDurationSeconds();
       syncUi();
     }
