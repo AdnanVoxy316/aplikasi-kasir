@@ -678,6 +678,8 @@
     const settingsRoot = document.querySelector(".settings-content");
     if (!settingsRoot) return;
 
+    const myProfileCard = document.querySelector("#settingsMyProfileCard");
+    const attendanceCard = document.querySelector("#settingsAttendanceCard");
     const toggleCards = settingsRoot.querySelectorAll(
       ".menu-card[data-settings-toggle]",
     );
@@ -686,7 +688,6 @@
     );
     if (!toggleCards.length || !panels.length) return;
 
-    const storageKey = "kasirPintarActiveSettingsPanel";
     const panelMap = new Map();
 
     function setPanelHeight(panel, expanded) {
@@ -712,12 +713,36 @@
       });
 
       syncCards(panelId);
+    }
 
-      if (panelId) {
-        window.sessionStorage.setItem(storageKey, panelId);
-      } else {
-        window.sessionStorage.removeItem(storageKey);
+    function clearHash() {
+      history.pushState(
+        null,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    }
+
+    function normalizeHash() {
+      return String(window.location.hash || "")
+        .replace(/^#/, "")
+        .trim();
+    }
+
+    function handleNavigation() {
+      const activeHash = normalizeHash();
+
+      if (activeHash === "") {
+        openPanel("");
+        return;
       }
+
+      if (panelMap.has(activeHash)) {
+        openPanel(activeHash);
+        return;
+      }
+
+      openPanel("");
     }
 
     panels.forEach((panel) => {
@@ -740,21 +765,30 @@
       return false;
     }
 
-    toggleCards.forEach((card) => {
+    function bindToggleCard(card, explicitTargetId) {
+      if (!card) return;
       card.addEventListener("click", (event) => {
-        const targetId = card.dataset.settingsToggle || "";
+        const targetId = explicitTargetId || card.dataset.settingsToggle || "";
         if (!targetId) return;
 
-        // If already open, close it and clear hash
+        event.preventDefault();
+
         if (closePanelIfOpen(targetId)) {
-          history.pushState(null, "", window.location.pathname);
+          clearHash();
+          handleNavigation();
           return;
         }
 
-        // Otherwise, update hash to open panel
-        event.preventDefault();
-        window.location.hash = "#" + targetId;
+        window.location.hash = `#${targetId}`;
       });
+    }
+
+    bindToggleCard(myProfileCard, "my-profile");
+    bindToggleCard(attendanceCard, "attendance");
+
+    toggleCards.forEach((card) => {
+      if (card === myProfileCard || card === attendanceCard) return;
+      bindToggleCard(card);
     });
 
     settingsRoot.querySelectorAll("form").forEach((form) => {
@@ -763,9 +797,14 @@
           ".settings-panel[data-settings-panel]",
         );
         if (!parentPanel) return;
-        window.sessionStorage.setItem(
-          storageKey,
-          parentPanel.dataset.settingsPanel || "",
+
+        const panelId = parentPanel.dataset.settingsPanel || "";
+        const baseAction = (
+          form.getAttribute("action") || "settings.php"
+        ).split("#")[0];
+        form.setAttribute(
+          "action",
+          panelId ? `${baseAction}#${panelId}` : baseAction,
         );
       });
     });
@@ -792,16 +831,7 @@
         });
       });
 
-    const initialPanelId =
-      window.location.hash.replace(/^#/, "") ||
-      window.sessionStorage.getItem(storageKey) ||
-      "";
-
-    if (initialPanelId && panelMap.has(initialPanelId)) {
-      openPanel(initialPanelId);
-    } else {
-      openPanel("");
-    }
+    handleNavigation();
 
     window.addEventListener("resize", () => {
       panels.forEach((panel) => {
@@ -811,18 +841,10 @@
       });
     });
 
-    /* ── Hashchange listener: handle browser back/forward and direct links ── */
-    window.addEventListener("hashchange", () => {
-      const hash = window.location.hash.replace(/^#/, "");
-      if (hash && panelMap.has(hash)) {
-        openPanel(hash);
-      } else if (!hash) {
-        openPanel("");
-      }
-    });
+    window.addEventListener("hashchange", handleNavigation);
   }
 
-  document.addEventListener("DOMContentLoaded", bindSettingsPanelToggle);
+  window.addEventListener("DOMContentLoaded", bindSettingsPanelToggle);
 })();
 
 /* --- GLOBAL PASSWORD TOGGLE VISIBILITY --- */
@@ -2957,67 +2979,131 @@
   const root = document.getElementById("reportsPageRoot");
   if (!root) return;
 
-  const modalEl = document.getElementById("reportTransactionDetailModal");
-  const trxNumberEl = document.getElementById("reportDetailTrxNumber");
-  const cashierEl = document.getElementById("reportDetailCashier");
-  const totalEl = document.getElementById("reportDetailTotal");
-  const itemsBody = document.getElementById("reportDetailItemsBody");
+  /* ── Panel toggle ── */
+  const menuCards = root.querySelectorAll(".menu-card-report");
+  const panels = root.querySelectorAll(".reports-panel");
+  if (menuCards.length && panels.length) {
+    function openPanel(id) {
+      panels.forEach((p) => {
+        const show = p.dataset.reportsPanel === id;
+        p.classList.toggle("is-visible", show);
+        p.setAttribute("aria-hidden", show ? "false" : "true");
+      });
+      menuCards.forEach((c) => {
+        c.classList.toggle("is-active", c.dataset.reportsToggle === id);
+      });
+      if (id) sessionStorage.setItem("kasirPintarActiveReportsPanel", id);
+    }
 
-  function formatRupiah(value) {
-    const number = Number(value || 0);
-    return `Rp ${new Intl.NumberFormat("id-ID").format(number)}`;
+    panels.forEach((p) => {
+      p.classList.remove("is-visible");
+      p.setAttribute("aria-hidden", "true");
+    });
+
+    menuCards.forEach((card) => {
+      card.addEventListener("click", (e) => {
+        e.preventDefault();
+        const id = card.dataset.reportsToggle || "";
+        openPanel(id);
+        if (id) {
+          const target = document.getElementById(id);
+          if (target)
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    });
+
+    root.querySelectorAll("[data-reports-panel-close]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        openPanel("");
+        window.sessionStorage.removeItem("kasirPintarActiveReportsPanel");
+      });
+    });
+
+    const saved = sessionStorage.getItem("kasirPintarActiveReportsPanel") || "";
+    if (saved) openPanel(saved);
   }
 
-  function renderItems(items) {
-    if (!itemsBody) return;
+  /* ── Modal detail (data attributes) ── */
+  function fillModal(btn) {
+    const map = {
+      rDetailId: btn.dataset.trxNum,
+      rDetailCashier: btn.dataset.trxCashier,
+      rDetailMethod: btn.dataset.trxMethod,
+      rDetailTotal: btn.dataset.trxTotal,
+      rDetailPaid: btn.dataset.trxPaid,
+      rDetailChange: btn.dataset.trxChange,
+    };
+    for (const [id, val] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val || "-";
+    }
 
-    if (!Array.isArray(items) || items.length === 0) {
-      itemsBody.innerHTML =
-        '<tr><td colspan="4" class="text-center text-muted">Tidak ada item pada transaksi ini.</td></tr>';
+    const tbody = document.getElementById("rDetailItemsBody");
+    if (!tbody) return;
+    let items = [];
+    try {
+      items = JSON.parse(btn.dataset.trxItems || "[]");
+    } catch {}
+
+    if (!items.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="5" class="text-center text-muted">Tidak ada item.</td></tr>';
+      document.getElementById("rDetailTotalValue").textContent =
+        btn.dataset.trxTotal || "-";
       return;
     }
 
-    itemsBody.innerHTML = items
-      .map(
-        (item) => `
-          <tr>
-            <td>${item.product_code || "-"}</td>
-            <td>${item.product_name || "-"}</td>
-            <td class="text-center">${Number(item.qty || 0)}</td>
-            <td class="text-end">${formatRupiah(item.subtotal || 0)}</td>
-          </tr>
-        `,
-      )
+    let total = 0;
+    tbody.innerHTML = items
+      .map((it) => {
+        const sub = it.subtotal || 0;
+        total += sub;
+        return `<tr>
+        <td>${it.code || "-"}</td>
+        <td>${it.name || "-"}</td>
+        <td class="text-center">${it.qty || 0}</td>
+        <td class="text-end">Rp ${Number(it.price || 0).toLocaleString("id-ID")}</td>
+        <td class="text-end">Rp ${sub.toLocaleString("id-ID")}</td>
+      </tr>`;
+      })
       .join("");
+    document.getElementById("rDetailTotalValue").textContent =
+      `Rp ${total.toLocaleString("id-ID")}`;
   }
 
-  function openDetailModal(triggerBtn) {
-    if (!modalEl || typeof bootstrap === "undefined") return;
-
-    const trxNumber = triggerBtn.dataset.trxNumber || "-";
-    const trxCashier = triggerBtn.dataset.trxCashier || "-";
-    const trxTotal = triggerBtn.dataset.trxTotal || "-";
-    let items = [];
-
-    try {
-      items = JSON.parse(triggerBtn.dataset.trxItems || "[]");
-    } catch (error) {
-      items = [];
+  /* wire up eye-button + trx-number-btn to open modal */
+  root.addEventListener("click", (e) => {
+    const eyeBtn = e.target.closest(".btn-reports-detail");
+    if (eyeBtn) {
+      const row = eyeBtn.closest("tr");
+      const numBtn = row?.querySelector(".report-trx-number-btn");
+      if (numBtn) {
+        fillModal(numBtn);
+        bootstrap.Modal.getOrCreateInstance(
+          document.getElementById("reportDetailModal"),
+        ).show();
+      }
     }
 
-    if (trxNumberEl) trxNumberEl.textContent = trxNumber;
-    if (cashierEl) cashierEl.textContent = trxCashier;
-    if (totalEl) totalEl.textContent = trxTotal;
-    renderItems(items);
-
-    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
-    modal.show();
-  }
-
-  document.addEventListener("click", (event) => {
-    const triggerBtn = event.target.closest(".report-transaction-id-btn");
-    if (!triggerBtn) return;
-    event.preventDefault();
-    openDetailModal(triggerBtn);
+    const numBtn = e.target.closest(".report-trx-number-btn");
+    if (numBtn) {
+      fillModal(numBtn);
+      bootstrap.Modal.getOrCreateInstance(
+        document.getElementById("reportDetailModal"),
+      ).show();
+    }
   });
+
+  /* ── Client-side search filter (demo) ── */
+  const searchInput = document.getElementById("reportSearchTx");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      const q = searchInput.value.trim().toLowerCase();
+      document.querySelectorAll(".reports-trx-row").forEach((row) => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = q && !text.includes(q) ? "none" : "";
+      });
+    });
+  }
 })();

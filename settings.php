@@ -737,7 +737,7 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
             </div>
             <span class="settings-role-badge"><?php echo htmlspecialchars($current_role); ?></span>
         </div>
-        <div class="menu-grid <?php echo !$is_logged_in ? 'menu-grid--guest' : ''; ?>">
+        <div class="menu-grid <?php echo !$is_logged_in ? 'menu-grid--guest' : ''; ?>" id="settingsMenuGrid">
             <?php if (!$is_logged_in) { ?>
                 <a href="auth/login/login_cashier.php" class="menu-card menu-card-attendance">
                     <span class="menu-card-icon"><i class="fas fa-user-clock"></i></span>
@@ -751,7 +751,7 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                     <div class="desc">Masuk sebagai admin untuk kelola sistem. Reset password admin via phpMyAdmin.</div>
                 </a>
             <?php } elseif ($is_admin) { ?>
-                <a href="#my-profile" class="menu-card menu-card-profile" data-settings-toggle="my-profile">
+                <a href="#my-profile" class="menu-card menu-card-profile" id="settingsMyProfileCard" data-settings-toggle="my-profile">
                     <span class="menu-card-icon"><i class="fas fa-id-badge"></i></span>
                     <div class="title">My Profile</div>
                     <div class="desc">Kelola identitas akun admin, kontak, email, dan ID Kasir.</div>
@@ -775,13 +775,13 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                     <div class="desc">Pantau jam Absen Masuk/Keluar semua kasir.</div>
                 </a>
             <?php } elseif ($is_cashier) { ?>
-                <a href="#my-profile" class="menu-card menu-card-profile" data-settings-toggle="my-profile">
+                <a href="#my-profile" class="menu-card menu-card-profile" id="settingsMyProfileCard" data-settings-toggle="my-profile">
                     <span class="menu-card-icon"><i class="fas fa-id-badge"></i></span>
                     <div class="title">My Profile</div>
                     <div class="desc">Ganti nama lengkap dan password Anda.</div>
                 </a>
 
-                <a href="#attendance" class="menu-card menu-card-attendance" data-settings-toggle="attendance">
+                <a href="#attendance" class="menu-card menu-card-attendance" id="settingsAttendanceCard" data-settings-toggle="attendance">
                     <span class="menu-card-icon"><i class="fas fa-fingerprint"></i></span>
                     <div class="title">Attendance</div>
                     <div class="desc">Lakukan Absen Masuk / Absen Keluar.</div>
