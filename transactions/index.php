@@ -453,10 +453,10 @@ $activeCashier = getActiveCashierName();
                                 placeholder="Scan barcode atau ketik kode produk lalu Enter"
                                 autocomplete="off"
                             >
-                            <button type="button" class="btn btn-add-product" id="transactionAddBtn">
+                            <button type="button" class="btn btn-minimalist-success" id="transactionAddBtn">
                                 <i class="fas fa-plus me-1"></i> Tambah
                             </button>
-                            <button type="button" class="btn btn-product-save" id="transactionCameraScanBtn">
+                            <button type="button" class="btn btn-minimalist-primary" id="transactionCameraScanBtn">
                                 <i class="fas fa-camera me-1"></i> Scan
                             </button>
                         </div>
@@ -467,7 +467,7 @@ $activeCashier = getActiveCashierName();
                     <div class="stat-card transaction-scanner-card">
                         <div class="transaction-scanner-header">
                             <h6 class="mb-0"><i class="fas fa-barcode me-2"></i>Camera Scanner</h6>
-                            <button type="button" class="btn btn-sm btn-secondary" id="transactionStopScanBtn" disabled>Stop</button>
+                            <button type="button" class="btn btn-minimalist-danger btn-minimalist-sm" id="transactionStopScanBtn" disabled>Stop</button>
                         </div>
                         <div id="transactionScannerArea" class="transaction-scanner-area"></div>
                     </div>

@@ -2305,6 +2305,19 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   min-height: 42px;
 }
 
+#transactionAddBtn,
+#transactionCameraScanBtn {
+  min-height: 42px;
+  border-width: 0.0625rem;
+  padding-inline: 1rem;
+  box-shadow: none;
+}
+
+#transactionStopScanBtn {
+  border-width: 0.0625rem;
+  box-shadow: none;
+}
+
 .transaction-scanner-header {
   display: flex;
   justify-content: space-between;
@@ -2598,20 +2611,40 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   color: #111827;
 }
 
+/* =============================================
+   TRANSACTION — BAYAR BUTTON
+   Style: border-only default, fill on hover
+   Mirrors btn-profile-outline-save from settings
+   ============================================= */
 .btn-product-save {
-  background-color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  color: #06212a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 10.5rem;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: transparent;
+  color: #16a34a;
+  border: 0.0625rem solid #16a34a;
   font-weight: 700;
-  border-radius: 10px;
-  padding: 10px 18px;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease,
+    border-color 0.3s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .btn-product-save:hover,
 .btn-product-save:focus {
-  background-color: var(--primary-color-hover);
-  border-color: var(--primary-color-hover);
+  background-color: #16a34a;
   color: #ffffff;
+  border-color: #15803d;
+}
+
+.btn-product-save:focus {
+  outline: 2px solid rgba(22, 163, 74, 0.5);
+  outline-offset: 2px;
 }
 
 .btn-product-save:disabled {

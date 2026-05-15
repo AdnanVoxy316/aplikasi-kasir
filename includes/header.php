@@ -4,12 +4,21 @@ $header_user_name = function_exists('getActiveCashierName') ? getActiveCashierNa
 $header_user_photo = '';
 $header_user_photo_default = true;
 
+/**
+ * Profile photo sources (in priority order):
+ *  1. $_SESSION['last_profile_photo'] — updated immediately after profile save
+ *  2. $_SESSION['cashier']['profile_photo'] — set at login / refreshed on profile update
+ *  3. Falls back to placeholder icon
+ *
+ * Note: always starts with '/' so it resolves correctly from any page depth
+ * (e.g. /transactions/index.php, /reports.php, /settings.php, etc.)
+ */
 if ($is_logged_in_header) {
-    $current_cashier = function_exists('getCurrentCashier') ? getCurrentCashier() : null;
-    /* Use last_profile_photo from session for immediate sync, otherwise use current cashier photo */
-    $header_user_photo = !empty($_SESSION['last_profile_photo'])
-        ? (string) $_SESSION['last_profile_photo']
-        : (string) ($current_cashier['profile_photo'] ?? '');
+    $header_user_photo = (string) ($_SESSION['last_profile_photo'] ?? '');
+    if ($header_user_photo === '') {
+        $current_cashier = function_exists('getCurrentCashier') ? getCurrentCashier() : null;
+        $header_user_photo = (string) ($current_cashier['profile_photo'] ?? '');
+    }
     $header_user_photo_default = $header_user_photo === '';
 }
 ?>
@@ -34,7 +43,7 @@ if ($is_logged_in_header) {
                         $photo_path = __DIR__ . '/../assets/img/' . $header_user_photo;
                         $photo_t = is_file($photo_path) ? filemtime($photo_path) : time();
                     ?>
-                        <img src="assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo $photo_t; ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
+                        <img src="/assets/img/<?php echo htmlspecialchars($header_user_photo); ?>?t=<?php echo $photo_t; ?>" alt="Profile" class="header-profile-avatar-image" id="headerProfileAvatarImage">
                     <?php } ?>
                     <span class="header-profile-avatar-sync" aria-hidden="true"><i class="fas fa-sync-alt"></i></span>
                 </span>
