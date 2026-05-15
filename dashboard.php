@@ -225,18 +225,25 @@ if ($is_cashier) {
             $latestLogRow = $myLatestLog->fetch_assoc();
             $clockIn = !empty($latestLogRow['clock_in_at']) ? (string) $latestLogRow['clock_in_at'] : null;
             $clockOut = !empty($latestLogRow['clock_out_at']) ? (string) $latestLogRow['clock_out_at'] : null;
-            $seconds = 0;
-            if (!empty($clockIn)) {
-                $seconds = max(0, (strtotime($clockOut ?: date('Y-m-d H:i:s')) ?: time()) - (strtotime($clockIn) ?: time()));
-            }
 
-            $attendanceToday = [
-                'date' => !empty($clockIn) ? date('Y-m-d', strtotime($clockIn)) : $today,
-                'clock_in' => $clockIn,
-                'clock_out' => $clockOut,
-                'total_hours' => round($seconds / 3600, 2),
-                'status' => $clockOut ? 'Pulang' : (!empty($clockIn) ? 'Masuk' : 'Pulang'),
-            ];
+            // Only use last log if clock_in is from today (still on duty or completed today)
+            $clockInDate = !empty($clockIn) ? date('Y-m-d', strtotime($clockIn)) : '';
+            $isToday = $clockInDate === $today;
+
+            if ($isToday) {
+                $seconds = 0;
+                if (!empty($clockIn)) {
+                    $seconds = max(0, (strtotime($clockOut ?: date('Y-m-d H:i:s')) ?: time()) - (strtotime($clockIn) ?: time()));
+                }
+
+                $attendanceToday = [
+                    'date' => $today,
+                    'clock_in' => $clockIn,
+                    'clock_out' => $clockOut,
+                    'total_hours' => round($seconds / 3600, 2),
+                    'status' => $clockOut ? 'Pulang' : 'Masuk',
+                ];
+            }
         }
     }
 }
@@ -382,11 +389,11 @@ if ($is_admin) {
                             <div class="attendance-grid">
                                 <div class="attendance-info-box">
                                     <div class="attendance-info-label">Absen Masuk</div>
-                                    <div class="attendance-info-value" id="attendanceClockInValue"><?php echo !empty($attendanceToday['clock_in']) ? htmlspecialchars(date('d/m/Y H:i:s', strtotime((string) $attendanceToday['clock_in']))) : '-'; ?></div>
+                                    <div class="attendance-info-value" id="attendanceClockInValue"><?php echo !empty($attendanceToday['clock_in']) ? htmlspecialchars(date('d/m/Y H:i:s', strtotime((string) $attendanceToday['clock_in']))) : '---'; ?></div>
                                 </div>
                                 <div class="attendance-info-box">
                                     <div class="attendance-info-label">Absen Pulang</div>
-                                    <div class="attendance-info-value" id="attendanceClockOutValue"><?php echo !empty($attendanceToday['clock_out']) ? htmlspecialchars(date('d/m/Y H:i:s', strtotime((string) $attendanceToday['clock_out']))) : '-'; ?></div>
+                                    <div class="attendance-info-value" id="attendanceClockOutValue"><?php echo !empty($attendanceToday['clock_out']) ? htmlspecialchars(date('d/m/Y H:i:s', strtotime((string) $attendanceToday['clock_out']))) : '---'; ?></div>
                                 </div>
                                 <div class="attendance-info-box">
                                     <div class="attendance-info-label">Durasi Kerja</div>
@@ -434,8 +441,8 @@ if ($is_admin) {
                                                 </div>
                                             </div>
                                             <div class="attendance-admin-meta">
-                                                <div><span>Clock In:</span> <strong><?php echo !empty($cashierLive['clock_in']) ? htmlspecialchars(date('H:i:s', strtotime((string) $cashierLive['clock_in']))) : '-'; ?></strong></div>
-                                                <div><span>Clock Out:</span> <strong><?php echo !empty($cashierLive['clock_out']) ? htmlspecialchars(date('H:i:s', strtotime((string) $cashierLive['clock_out']))) : '-'; ?></strong></div>
+                                                <div><span>Clock In:</span> <strong><?php echo !empty($cashierLive['clock_in']) ? htmlspecialchars(date('H:i:s', strtotime((string) $cashierLive['clock_in']))) : '---'; ?></strong></div>
+                                                <div><span>Clock Out:</span> <strong><?php echo !empty($cashierLive['clock_out']) ? htmlspecialchars(date('H:i:s', strtotime((string) $cashierLive['clock_out']))) : '---'; ?></strong></div>
                                                 <div><span>Work Timer:</span> <strong class="attendance-admin-duration">00:00:00</strong></div>
                                             </div>
                                         </div>

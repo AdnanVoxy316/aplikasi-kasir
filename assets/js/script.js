@@ -1320,10 +1320,10 @@
   }
 
   function formatDateTimeLocal(dateText) {
-    if (!dateText) return "-";
+    if (!dateText) return "---";
     const normalized = String(dateText).replace(" ", "T");
     const date = new Date(normalized);
-    if (Number.isNaN(date.getTime())) return "-";
+    if (Number.isNaN(date.getTime())) return "---";
 
     const dd = padTwo(date.getDate());
     const mm = padTwo(date.getMonth() + 1);
@@ -2664,7 +2664,8 @@
     const change = paid - activeTotal;
     const finalChange = change > 0 ? change : 0;
     changeAmountEl.textContent = formatRupiah(finalChange);
-    changeAmountEl.classList.toggle("insufficient", paid < activeTotal);
+    changeAmountEl.classList.toggle("insufficient", paid > 0 && paid < activeTotal);
+    changeAmountEl.classList.toggle("sufficient", paid >= activeTotal && activeTotal > 0);
   }
 
   function renderCartRows(items) {
@@ -2673,7 +2674,7 @@
     if (!items || !items.length) {
       cartBody.innerHTML = `
         <tr class="transaction-empty-row">
-          <td colspan="6" class="text-center text-muted">Keranjang masih kosong.</td>
+          <td colspan="6" class="text-center">Belum ada item di keranjang.</td>
         </tr>
       `;
       return;

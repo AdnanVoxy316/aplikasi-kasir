@@ -474,16 +474,19 @@ $activeCashier = getActiveCashierName();
                 </div>
             </div>
 
-            <div class="stat-card">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Cart</h5>
-                    <button type="button" class="btn btn-sm btn-outline-danger" id="transactionClearCartBtn">
+            <div class="transaction-cart-panel">
+                <div class="transaction-cart-hero">
+                    <div class="transaction-cart-hero-copy">
+                        <h3 class="transaction-cart-title">Keranjang Belanja</h3>
+                        <small class="transaction-cart-subtitle">Kelola item yang akan dibayar</small>
+                    </div>
+                    <button type="button" class="btn btn-minimalist-danger btn-minimalist-sm" id="transactionClearCartBtn">
                         <i class="fas fa-trash me-1"></i>Kosongkan
                     </button>
                 </div>
 
-                <div class="table-responsive">
-                    <table class="table" id="transactionCartTable">
+                <div class="transaction-cart-table-wrap" id="transactionCartTableWrap">
+                    <table class="transaction-cart-table" id="transactionCartTable">
                         <thead>
                             <tr>
                                 <th>Kode</th>
@@ -506,58 +509,66 @@ $activeCashier = getActiveCashierName();
                                         <td class="text-center">
                                             <button
                                                 type="button"
-                                                class="btn btn-sm btn-outline-danger transaction-remove-item-btn"
+                                                class="btn btn-minimalist-danger btn-minimalist-xs transaction-remove-item-btn"
                                                 data-product-id="<?php echo (int) $item['product_id']; ?>"
                                             >
-                                                <i class="fas fa-times"></i>
+                                                <i class="fas fa-trash-alt"></i>
                                             </button>
                                         </td>
                                     </tr>
                                 <?php } ?>
                             <?php } else { ?>
                                 <tr class="transaction-empty-row">
-                                    <td colspan="6" class="text-center text-muted">Keranjang masih kosong.</td>
+                                    <td colspan="6" class="text-center">Belum ada item di keranjang.</td>
                                 </tr>
                             <?php } ?>
                         </tbody>
                     </table>
                 </div>
 
-                <div class="transaction-summary-wrap">
-                    <div class="transaction-summary-line">
-                        <span>Subtotal</span>
-                        <strong id="transactionSubtotal">Rp <?php echo number_format($cartSummary['subtotal'], 0, ',', '.'); ?></strong>
+                <div class="transaction-cart-footer">
+                    <div class="transaction-summary-panel">
+                        <div class="transaction-summary-item">
+                            <span class="transaction-summary-label">Subtotal</span>
+                            <span class="transaction-summary-value" id="transactionSubtotal">Rp <?php echo number_format($cartSummary['subtotal'], 0, ',', '.'); ?></span>
+                        </div>
+                        <div class="transaction-summary-item">
+                            <span class="transaction-summary-label">Pajak (11%)</span>
+                            <span class="transaction-summary-value" id="transactionTax">Rp <?php echo number_format($cartSummary['tax'], 0, ',', '.'); ?></span>
+                        </div>
+                        <div class="transaction-summary-item transaction-summary-item--total">
+                            <span class="transaction-summary-label">Total Bayar</span>
+                            <span class="transaction-summary-value" id="transactionTotal">Rp <?php echo number_format($cartSummary['total'], 0, ',', '.'); ?></span>
+                        </div>
                     </div>
-                    <div class="transaction-summary-line">
-                        <span>Pajak (11%)</span>
-                        <strong id="transactionTax">Rp <?php echo number_format($cartSummary['tax'], 0, ',', '.'); ?></strong>
-                    </div>
-                    <div class="transaction-summary-line total">
-                        <span>Total Bayar</span>
-                        <strong id="transactionTotal">Rp <?php echo number_format($cartSummary['total'], 0, ',', '.'); ?></strong>
-                    </div>
-                </div>
 
-                <div class="transaction-action-row">
-                    <div class="transaction-payment-grid">
-                        <div>
-                            <label for="transactionPaymentMethod" class="form-label mb-1">Metode Pembayaran</label>
-                            <select id="transactionPaymentMethod" class="form-select">
-                                <option value="Cash" selected>Cash</option>
-                                <option value="QRIS" disabled>QRIS (Soon)</option>
-                            </select>
+                    <div class="transaction-payment-form">
+                        <div class="transaction-payment-header">
+                            <span class="transaction-payment-title"><i class="fas fa-credit-card me-2"></i>Metode Pembayaran</span>
                         </div>
-                        <div>
-                            <label for="transactionPaymentAmount" class="form-label mb-1">Uang Bayar</label>
-                            <input type="number" min="0" step="100" class="form-control" id="transactionPaymentAmount" placeholder="0">
-                        </div>
-                        <div>
-                            <label class="form-label mb-1">Kembalian</label>
-                            <div id="transactionChangeAmount" class="transaction-change-value">Rp 0</div>
+                        <div class="transaction-payment-fields">
+                            <div class="transaction-payment-field">
+                                <label class="transaction-field-label">Metode</label>
+                                <select id="transactionPaymentMethod" class="transaction-field-input">
+                                    <option value="Cash" selected>Cash</option>
+                                    <option value="QRIS" disabled>QRIS (Segera Hadir)</option>
+                                </select>
+                            </div>
+                            <div class="transaction-payment-field">
+                                <label class="transaction-field-label">Uang Bayar</label>
+                                <input type="number" min="0" step="100" class="transaction-field-input" id="transactionPaymentAmount" placeholder="Masukkan jumlah uang">
+                            </div>
+                            <div class="transaction-payment-field">
+                                <label class="transaction-field-label">Kembalian</label>
+                                <div class="transaction-change-display" id="transactionChangeAmount">Rp 0</div>
+                            </div>
                         </div>
                     </div>
+
                     <div class="transaction-action-bottom">
-                        <input type="text" class="form-control" id="transactionNotes" placeholder="Catatan transaksi (opsional)">
+                        <div class="transaction-notes-wrap">
+                            <input type="text" class="transaction-notes-input" id="transactionNotes" placeholder="Catatan transaksi (opsional)">
+                        </div>
                         <button type="button" class="btn btn-product-save" id="transactionPayBtn">
                             <i class="fas fa-cash-register me-1"></i> Bayar
                         </button>
@@ -566,6 +577,7 @@ $activeCashier = getActiveCashierName();
             </div>
         </div>
     </div>
+</div>
 
     <div class="toast-container"></div>
 
