@@ -70,65 +70,14 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($is_cashier && in_array($action, ['clock_in', 'clock_out'], true) && isSettingsAjaxRequest()) {
-        if ($action === 'clock_in') {
-            $open = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
-            if ($open && $open->num_rows > 0) {
-                settingsRespondJson([
-                    'success' => false,
-                    'message' => 'Gagal mencatat absen',
-                    'status' => 'Online',
-                ], 409);
-            }
+        $attendanceResponse = $action === 'clock_in'
+            ? attendanceClockInUser($conn, $current_user_id)
+            : attendanceClockOutUser($conn, $current_user_id);
 
-            if ($conn->query("INSERT INTO attendance_logs (user_id, clock_in_at) VALUES ($current_user_id, NOW())")) {
-                settingsRespondJson([
-                    'success' => true,
-                    'action' => 'clock_in',
-                    'message' => 'Absen Masuk Success',
-                    'status' => 'Online',
-                    'clock_in_at' => date('Y-m-d H:i:s'),
-                    'clock_out_at' => null,
-                ]);
-            }
+        $statusCode = (int) ($attendanceResponse['code'] ?? 200);
+        unset($attendanceResponse['code']);
 
-            settingsRespondJson([
-                'success' => false,
-                'message' => 'Gagal mencatat absen',
-                'status' => 'Offline',
-            ], 500);
-        }
-
-        if ($action === 'clock_out') {
-            $open = $conn->query("SELECT id, clock_in_at FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
-            if (!$open || $open->num_rows === 0) {
-                settingsRespondJson([
-                    'success' => false,
-                    'message' => 'Gagal mencatat absen',
-                    'status' => 'Offline',
-                ], 409);
-            }
-
-            $open_row = $open->fetch_assoc();
-            $attendance_id = (int) ($open_row['id'] ?? 0);
-            $clock_in_at = (string) ($open_row['clock_in_at'] ?? '');
-
-            if ($attendance_id > 0 && $conn->query("UPDATE attendance_logs SET clock_out_at = NOW() WHERE id = $attendance_id LIMIT 1")) {
-                settingsRespondJson([
-                    'success' => true,
-                    'action' => 'clock_out',
-                    'message' => 'Absen Keluar Success',
-                    'status' => 'Offline',
-                    'clock_in_at' => $clock_in_at,
-                    'clock_out_at' => date('Y-m-d H:i:s'),
-                ]);
-            }
-
-            settingsRespondJson([
-                'success' => false,
-                'message' => 'Gagal mencatat absen',
-                'status' => 'Online',
-            ], 500);
-        }
+        settingsRespondJson($attendanceResponse, $statusCode);
     }
 
     if ($action === 'update_my_profile') {
@@ -374,67 +323,67 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'forgot_password_verify_question') {
-    $question_key = trim($_POST['forgot_password_question_key'] ?? '');
-    $security_question_answer = trim($_POST['security_question_answer'] ?? '');
+        $question_key = trim($_POST['forgot_password_question_key'] ?? '');
+        $security_question_answer = trim($_POST['security_question_answer'] ?? '');
 
-    /* ALWAYS clear session on entry to verify action — fresh start on every POST */
-    unset($_SESSION['forgot_password_verified']);
-    unset($_SESSION['forgot_password_verified_user_id']);
-    unset($_SESSION['forgot_password_verified_question_key']);
+        /* ALWAYS clear session on entry to verify action — fresh start on every POST */
+        unset($_SESSION['forgot_password_verified']);
+        unset($_SESSION['forgot_password_verified_user_id']);
+        unset($_SESSION['forgot_password_verified_question_key']);
 
-    if ($question_key === '') {
-        $error_message = 'Silakan pilih pertanyaan keamanan.';
-    } elseif ($security_question_answer === '') {
-        $error_message = 'Jawaban pertanyaan keamanan wajib diisi.';
-    } else {
-        $user_security_result = $conn->query("SELECT security_question, security_answer, security_question_secondary, security_answer_secondary, security_question_tertiary, security_answer_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
-        if (!$user_security_result || $user_security_result->num_rows === 0) {
-            $error_message = 'Pengguna tidak ditemukan.';
+        if ($question_key === '') {
+            $error_message = 'Silakan pilih pertanyaan keamanan.';
+        } elseif ($security_question_answer === '') {
+            $error_message = 'Jawaban pertanyaan keamanan wajib diisi.';
         } else {
-            $user_security = $user_security_result->fetch_assoc();
-            $selected_question = '';
-            $selected_answer_hash = '';
-
-            if ($question_key === 'primary') {
-                $selected_question = trim((string) ($user_security['security_question'] ?? ''));
-                $selected_answer_hash = trim((string) ($user_security['security_answer'] ?? ''));
-            } elseif ($question_key === 'secondary') {
-                $selected_question = trim((string) ($user_security['security_question_secondary'] ?? ''));
-                $selected_answer_hash = trim((string) ($user_security['security_answer_secondary'] ?? ''));
-            } elseif ($question_key === 'tertiary') {
-                $selected_question = trim((string) ($user_security['security_question_tertiary'] ?? ''));
-                $selected_answer_hash = trim((string) ($user_security['security_answer_tertiary'] ?? ''));
-            }
-
-            if ($selected_question === '' || $selected_answer_hash === '') {
-                $error_message = 'Pertanyaan yang dipilih belum diatur di akun Anda.';
+            $user_security_result = $conn->query("SELECT security_question, security_answer, security_question_secondary, security_answer_secondary, security_question_tertiary, security_answer_tertiary FROM users WHERE id = $current_user_id LIMIT 1");
+            if (!$user_security_result || $user_security_result->num_rows === 0) {
+                $error_message = 'Pengguna tidak ditemukan.';
             } else {
-                $normalized_input = mb_strtolower($security_question_answer, 'UTF-8');
-                $is_answer_correct = false;
-                if ($selected_answer_hash !== '') {
-                    if (password_get_info($selected_answer_hash)['algo'] !== null) {
-                        $is_answer_correct = password_verify($normalized_input, $selected_answer_hash);
-                    } else {
-                        $is_answer_correct = strcasecmp($selected_answer_hash, $security_question_answer) === 0;
-                    }
+                $user_security = $user_security_result->fetch_assoc();
+                $selected_question = '';
+                $selected_answer_hash = '';
+
+                if ($question_key === 'primary') {
+                    $selected_question = trim((string) ($user_security['security_question'] ?? ''));
+                    $selected_answer_hash = trim((string) ($user_security['security_answer'] ?? ''));
+                } elseif ($question_key === 'secondary') {
+                    $selected_question = trim((string) ($user_security['security_question_secondary'] ?? ''));
+                    $selected_answer_hash = trim((string) ($user_security['security_answer_secondary'] ?? ''));
+                } elseif ($question_key === 'tertiary') {
+                    $selected_question = trim((string) ($user_security['security_question_tertiary'] ?? ''));
+                    $selected_answer_hash = trim((string) ($user_security['security_answer_tertiary'] ?? ''));
                 }
-                if (!$is_answer_correct) {
-                    $error_message = 'Jawaban pertanyaan keamanan tidak sesuai.';
+
+                if ($selected_question === '' || $selected_answer_hash === '') {
+                    $error_message = 'Pertanyaan yang dipilih belum diatur di akun Anda.';
                 } else {
-                    /* ONLY set verified on CORRECT answer — fresh correct POST only */
-                    $_SESSION['forgot_password_verified'] = true;
-                    $_SESSION['forgot_password_verified_user_id'] = $current_user_id;
-                    $_SESSION['forgot_password_verified_question_key'] = $question_key;
-                    $success_message = 'Jawaban benar! Silakan atur password baru Anda.';
+                    $normalized_input = mb_strtolower($security_question_answer, 'UTF-8');
+                    $is_answer_correct = false;
+                    if ($selected_answer_hash !== '') {
+                        if (password_get_info($selected_answer_hash)['algo'] !== null) {
+                            $is_answer_correct = password_verify($normalized_input, $selected_answer_hash);
+                        } else {
+                            $is_answer_correct = strcasecmp($selected_answer_hash, $security_question_answer) === 0;
+                        }
+                    }
+                    if (!$is_answer_correct) {
+                        $error_message = 'Jawaban pertanyaan keamanan tidak sesuai.';
+                    } else {
+                        /* ONLY set verified on CORRECT answer — fresh correct POST only */
+                        $_SESSION['forgot_password_verified'] = true;
+                        $_SESSION['forgot_password_verified_user_id'] = $current_user_id;
+                        $_SESSION['forgot_password_verified_question_key'] = $question_key;
+                        $success_message = 'Jawaban benar! Silakan atur password baru Anda.';
+                    }
                 }
             }
         }
     }
-}
 
-        /* forgot_password_set_new — verify session FIRST, then process.
-           Session is ONLY cleared after a successful password write.
-           On validation failure the session stays intact so the user can retry. */
+    /* forgot_password_set_new — verify session FIRST, then process.
+       Session is ONLY cleared after a successful password write.
+       On validation failure the session stays intact so the user can retry. */
     if ($action === 'forgot_password_set_new') {
         /* Verify the user passed Stage 1 verification in THIS session */
         if (
@@ -561,29 +510,20 @@ if ($is_logged_in && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($is_cashier && $action === 'clock_in') {
-        $open = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
-        if ($open && $open->num_rows > 0) {
-            $error_message = 'Anda sudah melakukan Absen Masuk.';
+        $attendanceResponse = attendanceClockInUser($conn, $current_user_id);
+        if (!empty($attendanceResponse['success'])) {
+            $success_message = (string) ($attendanceResponse['message'] ?? 'Absen Masuk berhasil dicatat.');
         } else {
-            if ($conn->query("INSERT INTO attendance_logs (user_id, clock_in_at) VALUES ($current_user_id, NOW())")) {
-                $success_message = 'Absen Masuk berhasil dicatat.';
-            } else {
-                $error_message = 'Gagal mencatat Absen Masuk.';
-            }
+            $error_message = (string) ($attendanceResponse['message'] ?? 'Gagal mencatat Absen Masuk.');
         }
     }
 
     if ($is_cashier && $action === 'clock_out') {
-        $open = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
-        if (!$open || $open->num_rows === 0) {
-            $error_message = 'Belum ada Absen Masuk aktif.';
+        $attendanceResponse = attendanceClockOutUser($conn, $current_user_id);
+        if (!empty($attendanceResponse['success'])) {
+            $success_message = (string) ($attendanceResponse['message'] ?? 'Absen Keluar berhasil dicatat.');
         } else {
-            $attendance_id = (int) ($open->fetch_assoc()['id'] ?? 0);
-            if ($conn->query("UPDATE attendance_logs SET clock_out_at = NOW() WHERE id = $attendance_id LIMIT 1")) {
-                $success_message = 'Absen Keluar berhasil dicatat.';
-            } else {
-                $error_message = 'Gagal mencatat Absen Keluar.';
-            }
+            $error_message = (string) ($attendanceResponse['message'] ?? 'Gagal mencatat Absen Keluar.');
         }
     }
 }
@@ -653,10 +593,29 @@ if ($is_admin) {
 }
 
 if ($is_cashier) {
-    $open_result = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
-    $current_shift_open = $open_result && $open_result->num_rows > 0;
+    $open_result = $conn->query("
+        SELECT al.id, al.clock_in_at as clock_in, al.clock_out_at as clock_out
+        FROM attendance_logs al
+        WHERE al.user_id = $current_user_id AND al.clock_out_at IS NULL
+        ORDER BY al.id DESC LIMIT 1
+    ");
+    if ($open_result && $open_result->num_rows > 0) {
+        $current_shift_open = true;
+        $current_shift_data = $open_result->fetch_assoc();
+    }
 
-    $my_log_result = $conn->query("SELECT DATE(clock_in_at) as date, clock_in_at, clock_out_at FROM attendance_logs WHERE user_id = $current_user_id ORDER BY clock_in_at DESC LIMIT 10");
+    // Source of truth for history: attendance_logs
+    $my_log_result = $conn->query("
+        SELECT
+            id,
+            user_id,
+            clock_in_at AS clock_in,
+            clock_out_at AS clock_out
+        FROM attendance_logs
+        WHERE user_id = $current_user_id
+        ORDER BY clock_in_at DESC
+        LIMIT 100
+    ");
     if ($my_log_result) {
         while ($row = $my_log_result->fetch_assoc()) {
             $my_attendance_logs[] = $row;
@@ -1316,59 +1275,32 @@ $forgot_password_verified_for_current_user = !empty($_SESSION['forgot_password_v
                                                 Belum ada riwayat absensi.
                                             </td>
                                         </tr>
-                                    <?php } else {
-                                        $displayed_dates = [];
+                                    <?php } else { 
                                         foreach ($my_attendance_logs as $log) {
-                                            $clockInRaw = $log['clock_in_at'] ?? null;
-                                            $clockOutRaw = $log['clock_out_at'] ?? null;
-                                            $logDate = $log['date'] ?? null;
-                                            $onDuty = !empty($clockInRaw) && empty($clockOutRaw);
-                                            $durationDisplay = '—';
-                                            if (!empty($clockInRaw)) {
-                                                if (!empty($clockOutRaw)) {
-                                                    $diff = max(0, strtotime($clockOutRaw) - strtotime($clockInRaw));
-                                                    $h = floor($diff / 3600);
-                                                    $m = floor(($diff % 3600) / 60);
-                                                    $s = $diff % 60;
-                                                    $durationDisplay = sprintf('%02d:%02d:%02d', $h, $m, $s);
-                                                } else {
-                                                    $diff = max(0, time() - strtotime($clockInRaw));
-                                                    $h = floor($diff / 3600);
-                                                    $m = floor(($diff % 3600) / 60);
-                                                    $s = $diff % 60;
-                                                    $durationDisplay = sprintf('%02d:%02d:%02d', $h, $m, $s);
-                                                }
+                                            $clockInRaw = (string) ($log['clock_in'] ?? '');
+                                            if ($clockInRaw === '') {
+                                                continue;
                                             }
-                                            $logDateDisplay = !empty($logDate) ? date('d/m/Y', strtotime((string) $logDate)) : '—';
-                                            $clockInDisplay = !empty($clockInRaw) ? date('H:i:s', strtotime((string) $clockInRaw)) : '—';
-                                            $clockOutDisplay = !empty($clockOutRaw) ? date('H:i:s', strtotime((string) $clockOutRaw)) : '<span style="color:#d97706;font-weight:600;">Belum Keluar</span>';
-                                            $dayKey = !empty($logDate) ? date('Y-m-d', strtotime((string) $logDate)) : '';
-                                            $showDateMerge = $dayKey !== '' && !isset($displayed_dates[$dayKey]);
-                                            if ($dayKey !== '') $displayed_dates[$dayKey] = true;
-                                            $dayLabel = !empty($logDate) ? strftime('%A, %d %B %Y', strtotime((string) $logDate)) : 'Tanggal Tidak Diketahui';
+
+                                            $clockOutRaw = !empty($log['clock_out']) ? (string) $log['clock_out'] : null;
+                                            $historyRow = attendanceBuildHistoryRowPayload($clockInRaw, $clockOutRaw);
+                                            $onDuty = !empty($historyRow['is_open']);
+                                            $statusBadgeClass = $onDuty ? 'on-duty' : 'off-duty';
                                             ?>
-                                            <?php if ($showDateMerge) { ?>
-                                            <tr class="date-merge-row">
-                                                <td colspan="5"><i class="fas fa-calendar-week me-1"></i><?php echo htmlspecialchars(ucfirst($dayLabel)); ?></td>
-                                            </tr>
-                                            <?php } ?>
                                             <tr data-settings-attendance-open="<?php echo $onDuty ? '1' : '0'; ?>"
-                                                data-clock-in="<?php echo htmlspecialchars((string) ($clockInRaw ?? '')); ?>">
-                                                <td class="cell-date"><?php echo htmlspecialchars($logDateDisplay); ?></td>
-                                                <td class="cell-time"><?php echo htmlspecialchars($clockInDisplay); ?></td>
-                                                <td class="cell-time"><?php echo $clockOutDisplay; ?></td>
-                                                <td class="cell-dur"><?php echo htmlspecialchars($durationDisplay); ?></td>
+                                                data-clock-in="<?php echo htmlspecialchars($clockInRaw); ?>">
+                                                <td class="cell-date"><?php echo htmlspecialchars((string) ($historyRow['date_label'] ?? '—')); ?></td>
+                                                <td class="cell-time"><?php echo htmlspecialchars((string) ($historyRow['clock_in_time'] ?? '—')); ?></td>
+                                                <td class="cell-time"><?php echo htmlspecialchars((string) ($historyRow['clock_out_time'] ?? '--:--:--')); ?></td>
+                                                <td class="cell-dur"><?php echo htmlspecialchars((string) ($historyRow['duration_hms'] ?? '00:00:00')); ?></td>
                                                 <td>
-                                                    <span class="badge-shift <?php echo $onDuty ? 'on-duty' : 'off-duty'; ?>">
-                                                        <?php if ($onDuty) { ?>
-                                                            <i class="fas fa-circle" style="font-size:0.4rem;"></i> On Duty
-                                                        <?php } else { ?>
-                                                            <i class="fas fa-check" style="font-size:0.6rem;"></i> Selesai
-                                                        <?php } ?>
+                                                    <span class="badge-shift <?php echo $statusBadgeClass; ?>">
+                                                        <?php echo htmlspecialchars((string) ($historyRow['status_label'] ?? ($onDuty ? 'On Duty' : 'Complete'))); ?>
                                                     </span>
                                                 </td>
                                             </tr>
-                                        <?php }} ?>
+                                        <?php }
+                                    } ?>
                                     </tbody>
                                 </table>
                             </div>

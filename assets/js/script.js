@@ -311,11 +311,34 @@
     const clockInBtn = document.getElementById("settingsClockInBtn");
     const clockOutBtn = document.getElementById("settingsClockOutBtn");
     const isOnline = status === "Online";
+    const headerRight = document.querySelector(
+      ".settings-attendance-header-right",
+    );
+    let durationContainer = document.getElementById("settingsLiveDuration");
 
     if (badge) {
-      badge.textContent = isOnline ? "Online" : "Offline";
-      badge.classList.toggle("bg-success", isOnline);
-      badge.classList.toggle("bg-secondary", !isOnline);
+      badge.classList.toggle("online", isOnline);
+      badge.classList.toggle("offline", !isOnline);
+      badge.innerHTML = `
+        <span class="settings-attendance-status-dot"></span>
+        ${isOnline ? "On Duty" : "Off Duty"}
+      `;
+    }
+
+    if (isOnline) {
+      if (!durationContainer && headerRight) {
+        durationContainer = document.createElement("div");
+        durationContainer.id = "settingsLiveDuration";
+        durationContainer.className = "settings-attendance-live-duration";
+        durationContainer.innerHTML = `
+          <i class="fas fa-hourglass-half"></i>
+          <span class="settings-attendance-live-duration-label">Durasi:</span>
+          <span class="settings-attendance-live-duration-value" id="settingsLiveDurationValue">00:00:00</span>
+        `;
+        headerRight.appendChild(durationContainer);
+      }
+    } else if (durationContainer) {
+      durationContainer.remove();
     }
 
     if (clockInBtn) clockInBtn.disabled = isOnline;
@@ -323,13 +346,83 @@
   }
 
   function removeEmptyHistoryRow(historyBody) {
-    const emptyRow = historyBody
-      .querySelector("td[colspan='2']")
-      ?.closest("tr");
+    const emptyRow = historyBody.querySelector("td.cell-empty")?.closest("tr");
     if (emptyRow) emptyRow.remove();
   }
 
-  function addClockInHistoryRow(clockInAt) {
+  function normalizeHistoryRow(
+    rowData,
+    fallbackClockInAt = "",
+    fallbackClockOutAt = "",
+  ) {
+    const clockInAt = String(
+      rowData?.clock_in_at || fallbackClockInAt || "",
+    ).trim();
+    const clockOutAt = String(
+      rowData?.clock_out_at || fallbackClockOutAt || "",
+    ).trim();
+    const isOpen =
+      rowData?.is_open === true ||
+      rowData?.is_open === 1 ||
+      rowData?.is_open === "1" ||
+      (!clockOutAt &&
+        String(rowData?.status_label || "").toLowerCase() === "on duty");
+
+    return {
+      dateLabel: String(rowData?.date_label || "-").trim() || "-",
+      clockInTime:
+        String(
+          rowData?.clock_in_time || formatTimeFromDateTime(clockInAt),
+        ).trim() || "-",
+      clockOutTime:
+        String(
+          rowData?.clock_out_time ||
+            (clockOutAt ? formatTimeFromDateTime(clockOutAt) : "--:--:--"),
+        ).trim() || "--:--:--",
+      durationHms:
+        String(rowData?.duration_hms || "00:00:00").trim() || "00:00:00",
+      statusLabel: String(
+        rowData?.status_label || (isOpen ? "On Duty" : "Complete"),
+      ).trim(),
+      isOpen,
+      clockInAt,
+    };
+  }
+
+  function buildHistoryRowElement(
+    rowData,
+    fallbackClockInAt = "",
+    fallbackClockOutAt = "",
+  ) {
+    const normalized = normalizeHistoryRow(
+      rowData,
+      fallbackClockInAt,
+      fallbackClockOutAt,
+    );
+    const row = document.createElement("tr");
+    if (normalized.isOpen) {
+      row.dataset.settingsAttendanceOpen = "1";
+    }
+    if (normalized.clockInAt) {
+      row.dataset.clockIn = normalized.clockInAt;
+    }
+
+    row.innerHTML = `
+      <td class="cell-date">${escapeHtml(normalized.dateLabel)}</td>
+      <td class="cell-time">${escapeHtml(normalized.clockInTime)}</td>
+      <td class="cell-time">${escapeHtml(normalized.clockOutTime)}</td>
+      <td class="cell-dur">${escapeHtml(normalized.durationHms)}</td>
+      <td>
+        <span class="badge-shift ${normalized.isOpen ? "on-duty" : "off-duty"}">
+          ${escapeHtml(normalized.statusLabel)}
+        </span>
+      </td>
+    `;
+
+    return row;
+  }
+
+  function addClockInHistoryRow(rowData, clockInAt) {
     const historyBody = document.getElementById(
       "settingsAttendanceHistoryBody",
     );
@@ -337,16 +430,11 @@
 
     removeEmptyHistoryRow(historyBody);
 
-    const row = document.createElement("tr");
-    row.dataset.settingsAttendanceOpen = "1";
-    row.innerHTML = `
-      <td>${escapeHtml(clockInAt || "-")}</td>
-      <td><span class="badge bg-warning text-dark">Belum Keluar</span></td>
-    `;
+    const row = buildHistoryRowElement(rowData, clockInAt || "", "");
     historyBody.prepend(row);
   }
 
-  function updateClockOutHistoryRow(clockOutAt) {
+  function updateClockOutHistoryRow(rowData, clockOutAt) {
     const historyBody = document.getElementById(
       "settingsAttendanceHistoryBody",
     );
@@ -360,11 +448,12 @@
 
     if (!openRow) return;
 
-    const cells = openRow.querySelectorAll("td");
-    if (cells.length >= 2) {
-      cells[1].textContent = clockOutAt || "-";
-    }
-    delete openRow.dataset.settingsAttendanceOpen;
+    const replacementRow = buildHistoryRowElement(
+      rowData,
+      openRow.dataset.clockIn || "",
+      clockOutAt || "",
+    );
+    openRow.replaceWith(replacementRow);
   }
 
   async function submitAttendanceAction(form, action) {
@@ -439,9 +528,9 @@
         );
 
         if (data.action === "clock_in") {
-          addClockInHistoryRow(data.clock_in_at);
+          addClockInHistoryRow(data.history_row || {}, data.clock_in_at);
         } else if (data.action === "clock_out") {
-          updateClockOutHistoryRow(data.clock_out_at);
+          updateClockOutHistoryRow(data.history_row || {}, data.clock_out_at);
         }
       } catch (error) {
         showAttendanceNotification(
@@ -600,15 +689,33 @@
       panel.style.maxHeight = "0px";
     });
 
+    function isPanelOpen(targetId) {
+      const panel = panelMap.get(targetId);
+      return panel && panel.classList.contains("is-visible");
+    }
+
+    function closePanelIfOpen(targetId) {
+      if (isPanelOpen(targetId)) {
+        openPanel("");
+        return true;
+      }
+      return false;
+    }
+
     toggleCards.forEach((card) => {
       card.addEventListener("click", (event) => {
-        event.preventDefault();
         const targetId = card.dataset.settingsToggle || "";
-        const targetPanel = panelMap.get(targetId);
-        if (!targetPanel) return;
+        if (!targetId) return;
 
-        const isAlreadyOpen = targetPanel.classList.contains("is-visible");
-        openPanel(isAlreadyOpen ? "" : targetId);
+        // If already open, close it and clear hash
+        if (closePanelIfOpen(targetId)) {
+          history.pushState(null, "", window.location.pathname);
+          return;
+        }
+
+        // Otherwise, update hash to open panel
+        event.preventDefault();
+        window.location.hash = "#" + targetId;
       });
     });
 

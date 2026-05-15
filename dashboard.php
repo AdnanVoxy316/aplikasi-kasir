@@ -38,101 +38,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
             ], 403);
         }
 
-        $today = date('Y-m-d');
-        $nowDateTime = date('Y-m-d H:i:s');
+        $openLog = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $current_user_id AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
+        $result = ($openLog && $openLog->num_rows > 0)
+            ? attendanceClockOutUser($conn, $current_user_id)
+            : attendanceClockInUser($conn, $current_user_id);
 
-        $stmt = $conn->prepare('SELECT id, clock_in, clock_out, status FROM attendance WHERE user_id = ? AND date = ? LIMIT 1');
-        if (!$stmt) {
-            attendanceRespondJson(['success' => false, 'message' => 'Gagal menyiapkan query attendance.'], 500);
-        }
-        $stmt->bind_param('is', $current_user_id, $today);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result ? $result->fetch_assoc() : null;
-        $stmt->close();
-
-        if (!$row) {
-            $insertStmt = $conn->prepare('INSERT INTO attendance (user_id, date, clock_in, status) VALUES (?, ?, ?, \"Masuk\")');
-            if (!$insertStmt) {
-                attendanceRespondJson(['success' => false, 'message' => 'Gagal menyiapkan proses Absen Masuk.'], 500);
-            }
-            $insertStmt->bind_param('iss', $current_user_id, $today, $nowDateTime);
-            $ok = $insertStmt->execute();
-            $insertStmt->close();
-
-            if (!$ok) {
-                attendanceRespondJson(['success' => false, 'message' => 'Gagal menyimpan Absen Masuk.'], 500);
-            }
-
+        if (empty($result['success'])) {
             attendanceRespondJson([
-                'success' => true,
-                'message' => 'Absen Masuk berhasil dicatat.',
-                'attendance' => [
-                    'status' => 'Masuk',
-                    'clock_in' => $nowDateTime,
-                    'clock_out' => null,
-                    'total_hours' => 0,
-                ],
-            ]);
+                'success' => false,
+                'message' => (string) ($result['message'] ?? 'Gagal memproses attendance.'),
+            ], (int) ($result['code'] ?? 500));
         }
 
-        $attendanceId = (int) ($row['id'] ?? 0);
-        $clockIn = (string) ($row['clock_in'] ?? '');
-        $clockOut = $row['clock_out'] ?? null;
-        $status = (string) ($row['status'] ?? 'Pulang');
-
-        if ($status === 'Masuk' && empty($clockOut)) {
-            $hours = 0;
-            if ($clockIn !== '') {
-                $seconds = max(0, (strtotime($nowDateTime) ?: time()) - (strtotime($clockIn) ?: time()));
-                $hours = round($seconds / 3600, 2);
-            }
-
-            $updateStmt = $conn->prepare('UPDATE attendance SET clock_out = ?, total_hours = ?, status = \"Pulang\" WHERE id = ? LIMIT 1');
-            if (!$updateStmt) {
-                attendanceRespondJson(['success' => false, 'message' => 'Gagal menyiapkan proses Absen Pulang.'], 500);
-            }
-            $updateStmt->bind_param('sdi', $nowDateTime, $hours, $attendanceId);
-            $ok = $updateStmt->execute();
-            $updateStmt->close();
-
-            if (!$ok) {
-                attendanceRespondJson(['success' => false, 'message' => 'Gagal menyimpan Absen Pulang.'], 500);
-            }
-
-            attendanceRespondJson([
-                'success' => true,
-                'message' => 'Absen Pulang berhasil dicatat.',
-                'attendance' => [
-                    'status' => 'Pulang',
-                    'clock_in' => $clockIn,
-                    'clock_out' => $nowDateTime,
-                    'total_hours' => $hours,
-                ],
-            ]);
-        }
-
-        $reopenStmt = $conn->prepare('UPDATE attendance SET clock_in = ?, clock_out = NULL, status = \"Masuk\" WHERE id = ? LIMIT 1');
-        if (!$reopenStmt) {
-            attendanceRespondJson(['success' => false, 'message' => 'Gagal menyiapkan proses Absen Masuk ulang.'], 500);
-        }
-        $reopenStmt->bind_param('si', $nowDateTime, $attendanceId);
-        $ok = $reopenStmt->execute();
-        $reopenStmt->close();
-
-        if (!$ok) {
-            attendanceRespondJson(['success' => false, 'message' => 'Gagal menyimpan Absen Masuk ulang.'], 500);
-        }
+        $attendancePayload = [
+            'status' => (($result['status'] ?? 'Offline') === 'Online') ? 'Masuk' : 'Pulang',
+            'clock_in' => $result['clock_in_at'] ?? null,
+            'clock_out' => $result['clock_out_at'] ?? null,
+            'total_hours' => round(((int) ($result['duration_seconds'] ?? 0)) / 3600, 2),
+        ];
 
         attendanceRespondJson([
             'success' => true,
-            'message' => 'Absen Masuk berhasil dicatat ulang.',
-            'attendance' => [
-                'status' => 'Masuk',
-                'clock_in' => $nowDateTime,
-                'clock_out' => null,
-                'total_hours' => 0,
-            ],
+            'message' => (string) ($result['message'] ?? 'Attendance berhasil diproses.'),
+            'attendance' => $attendancePayload,
         ]);
     }
 
@@ -145,15 +73,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
         }
 
         $today = date('Y-m-d');
+        $row = null;
         $stmt = $conn->prepare('SELECT id, date, clock_in, clock_out, total_hours, status FROM attendance WHERE user_id = ? AND date = ? LIMIT 1');
-        if (!$stmt) {
-            attendanceRespondJson(['success' => false, 'message' => 'Gagal menyiapkan status attendance.'], 500);
+        if ($stmt) {
+            $stmt->bind_param('is', $current_user_id, $today);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result ? $result->fetch_assoc() : null;
+            $stmt->close();
         }
-        $stmt->bind_param('is', $current_user_id, $today);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result ? $result->fetch_assoc() : null;
-        $stmt->close();
+
+        if (!$row) {
+            $openLog = $conn->query("SELECT clock_in_at, clock_out_at FROM attendance_logs WHERE user_id = $current_user_id AND DATE(clock_in_at) = '$today' ORDER BY id DESC LIMIT 1");
+            if ($openLog && $openLog->num_rows > 0) {
+                $logRow = $openLog->fetch_assoc();
+                $clockIn = (string) ($logRow['clock_in_at'] ?? '');
+                $clockOut = !empty($logRow['clock_out_at']) ? (string) $logRow['clock_out_at'] : null;
+                $seconds = 0;
+                if ($clockIn !== '') {
+                    $seconds = max(0, (strtotime($clockOut ?: date('Y-m-d H:i:s')) ?: time()) - (strtotime($clockIn) ?: time()));
+                }
+                $row = [
+                    'date' => $today,
+                    'clock_in' => $clockIn !== '' ? $clockIn : null,
+                    'clock_out' => $clockOut,
+                    'total_hours' => round($seconds / 3600, 2),
+                    'status' => $clockOut ? 'Pulang' : 'Masuk',
+                ];
+            }
+        }
 
         attendanceRespondJson([
             'success' => true,
@@ -175,7 +123,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
             ], 403);
         }
 
-        $today = date('Y-m-d');
         $monitorRows = [];
 
         $monitorSql = "
@@ -184,32 +131,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
                 u.nama_lengkap,
                 u.username,
                 u.is_active,
-                a.clock_in,
-                a.clock_out,
-                a.total_hours,
-                a.status
+                al.clock_in_at,
+                al.clock_out_at
             FROM users u
-            LEFT JOIN attendance a ON a.user_id = u.id AND a.date = ?
+            LEFT JOIN attendance_logs al ON al.id = (
+                SELECT al2.id
+                FROM attendance_logs al2
+                WHERE al2.user_id = u.id
+                ORDER BY al2.clock_in_at DESC
+                LIMIT 1
+            )
             WHERE u.role = 'kasir'
             ORDER BY u.nama_lengkap ASC
         ";
 
-        $stmt = $conn->prepare($monitorSql);
-        if (!$stmt) {
-            attendanceRespondJson(['success' => false, 'message' => 'Gagal menyiapkan live monitor attendance.'], 500);
-        }
-        $stmt->bind_param('s', $today);
-        $stmt->execute();
-        $result = $stmt->get_result();
+        $result = $conn->query($monitorSql);
         if ($result instanceof mysqli_result) {
             while ($row = $result->fetch_assoc()) {
-                $clockIn = (string) ($row['clock_in'] ?? '');
-                $clockOut = $row['clock_out'] ?? null;
-                $status = (string) ($row['status'] ?? 'Pulang');
+                $clockIn = !empty($row['clock_in_at']) ? (string) $row['clock_in_at'] : '';
+                $clockOut = !empty($row['clock_out_at']) ? (string) $row['clock_out_at'] : null;
+                $status = ($clockIn !== '' && $clockOut === null) ? 'Masuk' : 'Pulang';
 
                 $durationSeconds = 0;
-                if ($status === 'Masuk' && $clockIn !== '' && empty($clockOut)) {
-                    $durationSeconds = max(0, time() - (strtotime($clockIn) ?: time()));
+                if ($clockIn !== '') {
+                    $durationSeconds = max(0, (strtotime($clockOut ?: date('Y-m-d H:i:s')) ?: time()) - (strtotime($clockIn) ?: time()));
                 }
 
                 $monitorRows[] = [
@@ -219,13 +164,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['attendance_action']))
                     'is_active' => (int) ($row['is_active'] ?? 0) === 1,
                     'status' => $status,
                     'clock_in' => $clockIn !== '' ? $clockIn : null,
-                    'clock_out' => !empty($clockOut) ? (string) $clockOut : null,
-                    'total_hours' => (float) ($row['total_hours'] ?? 0),
+                    'clock_out' => $clockOut,
+                    'total_hours' => round($durationSeconds / 3600, 2),
                     'duration_seconds' => $durationSeconds,
                 ];
             }
         }
-        $stmt->close();
 
         attendanceRespondJson([
             'success' => true,
@@ -269,6 +213,27 @@ if ($is_cashier) {
             ];
         }
     }
+
+    if (empty($attendanceToday['clock_in'])) {
+        $myLatestLog = $conn->query("SELECT clock_in_at, clock_out_at FROM attendance_logs WHERE user_id = $current_user_id ORDER BY clock_in_at DESC LIMIT 1");
+        if ($myLatestLog && $myLatestLog->num_rows > 0) {
+            $latestLogRow = $myLatestLog->fetch_assoc();
+            $clockIn = !empty($latestLogRow['clock_in_at']) ? (string) $latestLogRow['clock_in_at'] : null;
+            $clockOut = !empty($latestLogRow['clock_out_at']) ? (string) $latestLogRow['clock_out_at'] : null;
+            $seconds = 0;
+            if (!empty($clockIn)) {
+                $seconds = max(0, (strtotime($clockOut ?: date('Y-m-d H:i:s')) ?: time()) - (strtotime($clockIn) ?: time()));
+            }
+
+            $attendanceToday = [
+                'date' => !empty($clockIn) ? date('Y-m-d', strtotime($clockIn)) : $today,
+                'clock_in' => $clockIn,
+                'clock_out' => $clockOut,
+                'total_hours' => round($seconds / 3600, 2),
+                'status' => $clockOut ? 'Pulang' : (!empty($clockIn) ? 'Masuk' : 'Pulang'),
+            ];
+        }
+    }
 }
 
 $adminLiveCashiers = [];
@@ -279,45 +244,44 @@ if ($is_admin) {
             u.nama_lengkap,
             u.username,
             u.is_active,
-            a.clock_in,
-            a.clock_out,
-            a.total_hours,
-            a.status
+            al.clock_in_at,
+            al.clock_out_at
         FROM users u
-        LEFT JOIN attendance a ON a.user_id = u.id AND a.date = ?
+        LEFT JOIN attendance_logs al ON al.id = (
+            SELECT al2.id
+            FROM attendance_logs al2
+            WHERE al2.user_id = u.id
+            ORDER BY al2.clock_in_at DESC
+            LIMIT 1
+        )
         WHERE u.role = 'kasir'
         ORDER BY u.nama_lengkap ASC
     ";
 
-    $stmtMonitor = $conn->prepare($monitorSql);
-    if ($stmtMonitor) {
-        $stmtMonitor->bind_param('s', $today);
-        $stmtMonitor->execute();
-        $resultMonitor = $stmtMonitor->get_result();
-        if ($resultMonitor instanceof mysqli_result) {
-            while ($row = $resultMonitor->fetch_assoc()) {
-                $clockIn = (string) ($row['clock_in'] ?? '');
-                $clockOut = $row['clock_out'] ?? null;
-                $status = (string) ($row['status'] ?? 'Pulang');
-                $durationSeconds = 0;
-                if ($status === 'Masuk' && $clockIn !== '' && empty($clockOut)) {
-                    $durationSeconds = max(0, time() - (strtotime($clockIn) ?: time()));
-                }
+    $resultMonitor = $conn->query($monitorSql);
+    if ($resultMonitor instanceof mysqli_result) {
+        while ($row = $resultMonitor->fetch_assoc()) {
+            $clockIn = !empty($row['clock_in_at']) ? (string) $row['clock_in_at'] : '';
+            $clockOut = !empty($row['clock_out_at']) ? (string) $row['clock_out_at'] : null;
+            $status = ($clockIn !== '' && $clockOut === null) ? 'Masuk' : 'Pulang';
+            $durationSeconds = 0;
 
-                $adminLiveCashiers[] = [
-                    'id' => (int) ($row['id'] ?? 0),
-                    'name' => (string) ($row['nama_lengkap'] ?? 'Kasir'),
-                    'username' => (string) ($row['username'] ?? ''),
-                    'is_active' => (int) ($row['is_active'] ?? 0) === 1,
-                    'status' => $status,
-                    'clock_in' => $clockIn !== '' ? $clockIn : null,
-                    'clock_out' => !empty($clockOut) ? (string) $clockOut : null,
-                    'total_hours' => (float) ($row['total_hours'] ?? 0),
-                    'duration_seconds' => $durationSeconds,
-                ];
+            if ($clockIn !== '') {
+                $durationSeconds = max(0, (strtotime($clockOut ?: date('Y-m-d H:i:s')) ?: time()) - (strtotime($clockIn) ?: time()));
             }
+
+            $adminLiveCashiers[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'name' => (string) ($row['nama_lengkap'] ?? 'Kasir'),
+                'username' => (string) ($row['username'] ?? ''),
+                'is_active' => (int) ($row['is_active'] ?? 0) === 1,
+                'status' => $status,
+                'clock_in' => $clockIn !== '' ? $clockIn : null,
+                'clock_out' => $clockOut,
+                'total_hours' => round($durationSeconds / 3600, 2),
+                'duration_seconds' => $durationSeconds,
+            ];
         }
-        $stmtMonitor->close();
     }
 }
 ?>
@@ -438,7 +402,7 @@ if ($is_admin) {
                             </div>
 
                             <div class="attendance-actions">
-                                <a href="settings.php?open_attendance=1"
+                                <a href="settings.php#attendance"
                                    class="btn-attendance-settings"
                                    id="attendanceSettingsBtn"
                                    title="Buka pengaturan absensi di Settings">

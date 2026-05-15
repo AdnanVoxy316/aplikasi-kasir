@@ -143,6 +143,17 @@ function ensureAuthTablesAndSeedAdmin(mysqli $conn) {
         CONSTRAINT fk_attendance_users FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
+    /* Backfill old daily attendance rows into attendance_logs so the
+       settings history table can use one consistent source of truth. */
+    $conn->query("INSERT INTO attendance_logs (user_id, clock_in_at, clock_out_at)
+                  SELECT a.user_id, a.clock_in, a.clock_out
+                  FROM attendance a
+                  LEFT JOIN attendance_logs al
+                    ON al.user_id = a.user_id
+                   AND al.clock_in_at = a.clock_in
+                  WHERE a.clock_in IS NOT NULL
+                    AND al.id IS NULL");
+
     $conn->query("INSERT INTO store_profile (store_name, store_address, store_logo)
                   SELECT 'Kasir Pintar Store', '', NULL
                   WHERE NOT EXISTS (SELECT 1 FROM store_profile)");
@@ -167,4 +178,169 @@ function ensureColumnExists(mysqli $conn, $table, $column, $alter_sql) {
     if (!columnExists($conn, $table, $column)) {
         $conn->query($alter_sql);
     }
+}
+
+function attendanceDurationHms(int $seconds): string
+{
+    $safeSeconds = max(0, $seconds);
+    $hours = (int) floor($safeSeconds / 3600);
+    $minutes = (int) floor(($safeSeconds % 3600) / 60);
+    $remainingSeconds = $safeSeconds % 60;
+
+    return sprintf('%02d:%02d:%02d', $hours, $minutes, $remainingSeconds);
+}
+
+function attendanceBuildHistoryRowPayload(string $clockInAt, ?string $clockOutAt = null): array
+{
+    $clockInTimestamp = strtotime($clockInAt) ?: time();
+    $clockOutTimestamp = $clockOutAt ? (strtotime($clockOutAt) ?: time()) : time();
+    $durationSeconds = max(0, $clockOutTimestamp - $clockInTimestamp);
+    $isOpen = empty($clockOutAt);
+
+    return [
+        'date_label' => date('l, d M', $clockInTimestamp),
+        'clock_in_time' => date('H:i:s', $clockInTimestamp),
+        'clock_out_time' => $clockOutAt ? date('H:i:s', $clockOutTimestamp) : '--:--:--',
+        'duration_hms' => attendanceDurationHms($durationSeconds),
+        'duration_seconds' => $durationSeconds,
+        'status_label' => $isOpen ? 'On Duty' : 'Complete',
+        'is_open' => $isOpen,
+        'clock_in_at' => $clockInAt,
+        'clock_out_at' => $clockOutAt,
+    ];
+}
+
+function attendanceSyncDailySnapshot(mysqli $conn, int $userId, string $clockInAt, ?string $clockOutAt = null): bool
+{
+    $attendanceDate = date('Y-m-d', strtotime($clockInAt) ?: time());
+    $totalHours = 0;
+
+    if (!empty($clockOutAt)) {
+        $durationSeconds = max(0, (strtotime($clockOutAt) ?: time()) - (strtotime($clockInAt) ?: time()));
+        $totalHours = round($durationSeconds / 3600, 2);
+    }
+
+    $safeDate = $conn->real_escape_string($attendanceDate);
+    $safeClockIn = $conn->real_escape_string($clockInAt);
+    $clockOutSql = $clockOutAt !== null
+        ? "'" . $conn->real_escape_string($clockOutAt) . "'"
+        : 'NULL';
+    $statusSql = $clockOutAt === null ? "'Masuk'" : "'Pulang'";
+
+    $sql = "INSERT INTO attendance (user_id, date, clock_in, clock_out, total_hours, status)
+            VALUES ($userId, '$safeDate', '$safeClockIn', $clockOutSql, $totalHours, $statusSql)
+            ON DUPLICATE KEY UPDATE
+                clock_in = VALUES(clock_in),
+                clock_out = VALUES(clock_out),
+                total_hours = VALUES(total_hours),
+                status = VALUES(status)";
+
+    return (bool) $conn->query($sql);
+}
+
+function attendanceClockInUser(mysqli $conn, int $userId): array
+{
+    $openResult = $conn->query("SELECT id FROM attendance_logs WHERE user_id = $userId AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
+    if ($openResult && $openResult->num_rows > 0) {
+        return [
+            'success' => false,
+            'message' => 'Anda sudah melakukan Absen Masuk.',
+            'status' => 'Online',
+            'code' => 409,
+        ];
+    }
+
+    $clockInAt = date('Y-m-d H:i:s');
+    $safeClockIn = $conn->real_escape_string($clockInAt);
+
+    try {
+        $conn->begin_transaction();
+
+        if (!$conn->query("INSERT INTO attendance_logs (user_id, clock_in_at) VALUES ($userId, '$safeClockIn')")) {
+            throw new RuntimeException('Gagal menyimpan Absen Masuk.');
+        }
+
+        if (!attendanceSyncDailySnapshot($conn, $userId, $clockInAt, null)) {
+            throw new RuntimeException('Gagal menyinkronkan attendance harian.');
+        }
+
+        $conn->commit();
+    } catch (Throwable $exception) {
+        $conn->rollback();
+
+        return [
+            'success' => false,
+            'message' => 'Gagal mencatat Absen Masuk.',
+            'status' => 'Offline',
+            'code' => 500,
+        ];
+    }
+
+    $historyRow = attendanceBuildHistoryRowPayload($clockInAt, null);
+
+    return [
+        'success' => true,
+        'action' => 'clock_in',
+        'message' => 'Absen Masuk berhasil dicatat.',
+        'status' => 'Online',
+        'clock_in_at' => $clockInAt,
+        'clock_out_at' => null,
+        'history_row' => $historyRow,
+        'duration_seconds' => 0,
+    ];
+}
+
+function attendanceClockOutUser(mysqli $conn, int $userId): array
+{
+    $openResult = $conn->query("SELECT id, clock_in_at FROM attendance_logs WHERE user_id = $userId AND clock_out_at IS NULL ORDER BY id DESC LIMIT 1");
+    if (!$openResult || $openResult->num_rows === 0) {
+        return [
+            'success' => false,
+            'message' => 'Belum ada Absen Masuk aktif.',
+            'status' => 'Offline',
+            'code' => 409,
+        ];
+    }
+
+    $openRow = $openResult->fetch_assoc();
+    $attendanceId = (int) ($openRow['id'] ?? 0);
+    $clockInAt = (string) ($openRow['clock_in_at'] ?? '');
+    $clockOutAt = date('Y-m-d H:i:s');
+    $safeClockOut = $conn->real_escape_string($clockOutAt);
+
+    try {
+        $conn->begin_transaction();
+
+        if (!$conn->query("UPDATE attendance_logs SET clock_out_at = '$safeClockOut' WHERE id = $attendanceId LIMIT 1")) {
+            throw new RuntimeException('Gagal menyimpan Absen Pulang.');
+        }
+
+        if (!attendanceSyncDailySnapshot($conn, $userId, $clockInAt, $clockOutAt)) {
+            throw new RuntimeException('Gagal menyinkronkan attendance harian.');
+        }
+
+        $conn->commit();
+    } catch (Throwable $exception) {
+        $conn->rollback();
+
+        return [
+            'success' => false,
+            'message' => 'Gagal mencatat Absen Keluar.',
+            'status' => 'Online',
+            'code' => 500,
+        ];
+    }
+
+    $historyRow = attendanceBuildHistoryRowPayload($clockInAt, $clockOutAt);
+
+    return [
+        'success' => true,
+        'action' => 'clock_out',
+        'message' => 'Absen Keluar berhasil dicatat.',
+        'status' => 'Offline',
+        'clock_in_at' => $clockInAt,
+        'clock_out_at' => $clockOutAt,
+        'history_row' => $historyRow,
+        'duration_seconds' => (int) ($historyRow['duration_seconds'] ?? 0),
+    ];
 }
