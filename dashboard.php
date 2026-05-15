@@ -397,7 +397,7 @@ if ($is_admin) {
                             <div class="attendance-actions">
                                 <button type="button" id="attendanceToggleBtn"
                                         class="btn btn-minimalist <?php echo (($attendanceToday['status'] ?? 'Pulang') === 'Masuk') ? 'btn-minimalist-danger' : 'btn-minimalist-success'; ?>">
-                                    <i class="fas <?php echo (($attendanceToday['status'] ?? 'Pulang') === 'Masuk') ? 'fa-sign-out-alt' : 'fa-sign-in-alt'; ?>"></i>
+                                    <i class="fas <?php echo (($attendanceToday['status'] ?? 'Pulang') === 'Masuk') ? 'fa-sign-out-alt' : 'fa-sign-in-alt'; ?>" id="attendanceToggleIcon"></i>
                                     <span id="attendanceToggleLabel"><?php echo (($attendanceToday['status'] ?? 'Pulang') === 'Masuk') ? 'Absen Pulang' : 'Absen Masuk'; ?></span>
                                 </button>
                             </div>

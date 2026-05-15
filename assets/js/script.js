@@ -1439,6 +1439,17 @@
         ? formatDateTimeLocal(state.clockOut)
         : "-";
       durationEl.textContent = formatDuration(state.durationSeconds);
+
+      if (toggleBtn) {
+        toggleBtn.classList.remove("btn-minimalist-success", "btn-minimalist-danger");
+        toggleBtn.classList.add(isOnline ? "btn-minimalist-danger" : "btn-minimalist-success");
+      }
+
+      const iconEl = document.getElementById("attendanceToggleIcon");
+      if (iconEl) {
+        iconEl.classList.remove("fa-sign-in-alt", "fa-sign-out-alt");
+        iconEl.classList.add(isOnline ? "fa-sign-out-alt" : "fa-sign-in-alt");
+      }
     }
 
     function hydrateAttendance(attendance) {
