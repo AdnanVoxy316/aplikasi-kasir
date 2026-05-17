@@ -460,7 +460,6 @@ $activeCashier = getActiveCashierName();
                                 <i class="fas fa-camera me-1"></i> Scan
                             </button>
                         </div>
-                        <small class="text-muted">USB scanner akan auto-input dan auto-submit saat kode terbaca.</small>
                     </div>
                 </div>
                 <div class="col-lg-5">
@@ -476,10 +475,7 @@ $activeCashier = getActiveCashierName();
 
             <div class="transaction-cart-panel">
                 <div class="transaction-cart-hero">
-                    <div class="transaction-cart-hero-copy">
-                        <h3 class="transaction-cart-title">Keranjang Belanja</h3>
-                        <small class="transaction-cart-subtitle">Kelola item yang akan dibayar</small>
-                    </div>
+                    <h3 class="transaction-cart-title">Keranjang Belanja</h3>
                     <button type="button" class="btn btn-minimalist-danger btn-minimalist-sm" id="transactionClearCartBtn">
                         <i class="fas fa-trash me-1"></i>Kosongkan
                     </button>
