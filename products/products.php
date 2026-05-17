@@ -8,10 +8,13 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../libraries/BarcodeGenerator.php';
 
-// Auto-create products table if it doesn't exist
-$tableCheck = $conn->query("SHOW TABLES LIKE 'products'");
-if (!$tableCheck || $tableCheck->num_rows === 0) {
-    $conn->query("CREATE TABLE IF NOT EXISTS `products` (
+/**
+ * Ensure products table exists and is readable.
+ *
+ * Handles MySQL error 1932 ("Table ... doesn't exist in engine") by rebuilding table.
+ */
+function ensureProductsTableHealthy($conn) {
+    $create_sql = "CREATE TABLE IF NOT EXISTS `products` (
         `id` int(11) NOT NULL AUTO_INCREMENT,
         `code` varchar(50) NOT NULL COMMENT 'Product code/SKU',
         `name` varchar(255) NOT NULL COMMENT 'Product name',
@@ -27,8 +30,27 @@ if (!$tableCheck || $tableCheck->num_rows === 0) {
         KEY `idx_code` (`code`),
         KEY `idx_name` (`name`),
         KEY `idx_category` (`category`)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Products inventory'");
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Products inventory'";
+
+    $table_check = $conn->query("SHOW TABLES LIKE 'products'");
+    if (!$table_check || $table_check->num_rows === 0) {
+        $conn->query($create_sql);
+        return;
+    }
+
+    $probe = $conn->query("SELECT 1 FROM products LIMIT 1");
+    if ($probe !== false) {
+        return;
+    }
+
+    if ((int) $conn->errno === 1932) {
+        error_log('Products table is corrupted (error 1932). Rebuilding table automatically.');
+        $conn->query("DROP TABLE IF EXISTS `products`");
+        $conn->query($create_sql);
+    }
 }
+
+ensureProductsTableHealthy($conn);
 
 $is_guest_mode = !isLoggedIn();
 
