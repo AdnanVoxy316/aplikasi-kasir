@@ -435,13 +435,9 @@ $activeCashier = getActiveCashierName();
                     <h3 class="transaction-title">Transaction Module</h3>
                     <p class="transaction-subtitle">Hybrid input: Manual kode, USB scanner, dan kamera scanner.</p>
                 </div>
-                <div class="transaction-cashier-meta">
-                    <div><span class="meta-label">Kasir:</span> <span id="transactionCashierName"><?php echo htmlspecialchars($activeCashier); ?></span></div>
-                    <div><span class="meta-label">Waktu:</span> <span id="transactionRealtimeClock">--:--:--</span></div>
-                </div>
             </div>
 
-            <div class="row g-3 mb-4">
+            <div class="row g-3 mt-2">
                 <div class="col-lg-7">
                     <div class="stat-card transaction-input-card">
                         <label for="transactionCodeInput" class="form-label">Kode Produk</label>

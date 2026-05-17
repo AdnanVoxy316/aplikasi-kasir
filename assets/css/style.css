@@ -2284,7 +2284,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 .transaction-subtitle {
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   color: var(--text-muted-2);
 }
 
@@ -4345,7 +4345,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 
 /* --- Menu Grid (Reports) --- */
 .menu-card-report {
-  border-left-color: rgba(0, 194, 203, 0.45) !important;
+  position: relative;
 }
 
 .menu-card-badge {
@@ -4353,12 +4353,27 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   margin-top: 0.5rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999rem;
-  background: rgba(0, 194, 203, 0.08);
-  color: var(--primary-color);
+  background: #eef2f7;
+  color: #475569;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.menu-card-profile .menu-card-badge {
+  background: rgba(40, 167, 69, 0.1);
+  color: var(--settings-green);
+}
+
+.menu-card-attendance .menu-card-badge {
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--settings-purple);
+}
+
+.menu-card-switch .menu-card-badge {
+  background: rgba(220, 53, 69, 0.1);
+  color: var(--settings-red);
 }
 
 /* --- Reports Panel --- */
@@ -5152,7 +5167,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 
 /* ── Menu Grid ── */
 .menu-card-report {
-  border-left-color: rgba(0, 194, 203, 0.45) !important;
+  position: relative;
 }
 
 .menu-card-badge {
@@ -5160,12 +5175,27 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   margin-top: 0.5rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999rem;
-  background: rgba(0, 194, 203, 0.08);
-  color: var(--primary-color);
+  background: #eef2f7;
+  color: #475569;
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+.menu-card-profile .menu-card-badge {
+  background: rgba(40, 167, 69, 0.1);
+  color: var(--settings-green);
+}
+
+.menu-card-attendance .menu-card-badge {
+  background: rgba(124, 58, 237, 0.1);
+  color: var(--settings-purple);
+}
+
+.menu-card-switch .menu-card-badge {
+  background: rgba(220, 53, 69, 0.1);
+  color: var(--settings-red);
 }
 
 /* ── Reports Panel ── */

@@ -205,8 +205,16 @@ function fmt($val) {
         <?php if (!empty($reportMenuSections)): ?>
         <div class="menu-grid">
             <?php foreach ($reportMenuSections as $item): ?>
+                <?php
+                    $reportCardToneClass = 'menu-card-profile';
+                    if (($item['id'] ?? '') === 'transaction-history' || ($item['id'] ?? '') === 'cashier-performance') {
+                        $reportCardToneClass = 'menu-card-attendance';
+                    } elseif (($item['id'] ?? '') === 'daily-summary') {
+                        $reportCardToneClass = 'menu-card-switch';
+                    }
+                ?>
                 <a href="#<?php echo $item['id']; ?>"
-                   class="menu-card menu-card-report"
+                   class="menu-card menu-card-report <?php echo $reportCardToneClass; ?>"
                    data-reports-toggle="<?php echo $item['id']; ?>">
                     <span class="menu-card-icon"><i class="fas <?php echo $item['icon']; ?>"></i></span>
                     <div class="title"><?php echo $item['title']; ?></div>
