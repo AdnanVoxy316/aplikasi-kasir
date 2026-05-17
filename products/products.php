@@ -232,11 +232,13 @@ function renderProductsTableRows($products, $barcodeGen, $low_stock_threshold, $
         }
         ?>
         <tr>
-            <td><?php echo $index + 1; ?></td>
-            <td>
+            <td class="text-center align-middle">
+                <span class="product-index"><?php echo $index + 1; ?></span>
+            </td>
+            <td class="align-middle text-center">
                 <?php if (!empty($product['image'])) { ?>
-                    <img src="../assets/img/<?php echo htmlspecialchars($product['image']); ?>" 
-                         alt="<?php echo htmlspecialchars($product['name']); ?>" 
+                    <img src="../assets/img/<?php echo htmlspecialchars($product['image']); ?>"
+                         alt="<?php echo htmlspecialchars($product['name']); ?>"
                          class="product-image">
                 <?php } else { ?>
                     <div class="product-image-placeholder">
@@ -244,53 +246,51 @@ function renderProductsTableRows($products, $barcodeGen, $low_stock_threshold, $
                     </div>
                 <?php } ?>
             </td>
-            <td class="product-barcode-cell">
-                <div class="product-barcode-wrapper">
-                    <?php echo $barcodeGen->generateHTML($product['code'], 700, 170); ?>
+            <td class="align-middle">
+                <div class="product-name-text"><?php echo htmlspecialchars($product['name']); ?></div>
+                <div class="product-category-text">
+                    <i class="fas fa-tag me-1"></i><?php echo !empty($product['category']) ? htmlspecialchars($product['category']) : '-'; ?>
+                </div>
+                <?php if (!empty($product['description'])) { ?>
+                    <div class="product-description-text"><?php echo htmlspecialchars(substr($product['description'], 0, 60)); ?></div>
+                <?php } ?>
+            </td>
+            <td class="align-middle">
+                <span class="product-code-badge"><?php echo htmlspecialchars($product['code']); ?></span>
+            </td>
+            <td class="align-middle">
+                <span class="product-price-text">Rp <?php echo number_format($product['price'], 0, ',', '.'); ?></span>
+            </td>
+            <td class="align-middle text-center">
+                <span class="<?php echo $stock_class; ?>"><?php echo $stock_value; ?></span>
+                <div class="product-stock-label <?php echo $stock_class; ?>"><?php echo $stock_text; ?></div>
+            </td>
+            <td class="align-middle">
+                <div class="product-barcode-cell">
+                    <div class="product-barcode-wrapper">
+                        <?php echo $barcodeGen->generateHTML($product['code'], 400, 100); ?>
+                    </div>
+                    <button type="button" class="btn btn-barcode-zoom"
+                            onclick="toggleBarcodeZoom(this, '<?php echo htmlspecialchars($product['code']); ?>')"
+                            title="Perbesar barcode">
+                        <i class="fas fa-expand"></i>
+                    </button>
                 </div>
             </td>
-            <td>
-                <span class="product-code-text">
-                    <?php echo htmlspecialchars($product['code']); ?>
-                </span>
-            </td>
-            <td>
-                <div class="product-name-text">
-                    <?php echo htmlspecialchars($product['name']); ?>
-                </div>
-                <small class="product-description-text">
-                    <?php echo !empty($product['description']) ? htmlspecialchars(substr($product['description'], 0, 50)) : '-'; ?>
-                </small>
-            </td>
-            <td>
-                <span class="product-category-text">
-                    <?php echo !empty($product['category']) ? htmlspecialchars($product['category']) : '-'; ?>
-                </span>
-            </td>
-            <td>
-                <span class="product-price-text">
-                    Rp <?php echo number_format($product['price'], 0, ',', '.'); ?>
-                </span>
-            </td>
-            <td>
-                <span class="<?php echo $stock_class; ?>">
-                    <?php echo $stock_value . ' ' . $stock_text; ?>
-                </span>
-            </td>
-            <td>
+            <td class="text-center align-middle">
                 <div class="action-buttons">
-                    <button class="btn btn-sm btn-outline-success <?php echo $is_guest_mode ? 'guest-action-locked' : ''; ?>" 
+                    <button class="btn btn-sm btn-action-label <?php echo $is_guest_mode ? 'guest-action-locked' : ''; ?>"
                             onclick="<?php echo $is_guest_mode ? 'return showGuestAccessMessage(event);' : 'downloadLabel(' . (int) $product['id'] . ')'; ?>"
-                            title="Download price tag/label">
-                        <i class="fas fa-tag"></i> Label
+                            title="Download label">
+                        <i class="fas fa-tag"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-primary <?php echo $is_guest_mode ? 'guest-action-locked' : ''; ?>" 
+                    <button class="btn btn-sm btn-action-edit <?php echo $is_guest_mode ? 'guest-action-locked' : ''; ?>"
                             onclick="<?php echo $is_guest_mode ? 'return showGuestAccessMessage(event);' : 'editProduct(' . (int) $product['id'] . ')'; ?>">
-                        <i class="fas fa-edit"></i> Edit
+                        <i class="fas fa-edit"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger <?php echo $is_guest_mode ? 'guest-action-locked' : ''; ?>" 
+                    <button class="btn btn-sm btn-action-delete <?php echo $is_guest_mode ? 'guest-action-locked' : ''; ?>"
                             onclick="<?php echo $is_guest_mode ? 'return showGuestAccessMessage(event);' : 'deleteProduct(' . (int) $product['id'] . ')'; ?>">
-                        <i class="fas fa-trash"></i> Delete
+                        <i class="fas fa-trash"></i>
                     </button>
                 </div>
             </td>
@@ -310,19 +310,19 @@ function renderProductsTableSection($products, $barcodeGen, $low_stock_threshold
 
         ob_start();
         ?>
-        <div class="table-responsive">
+        <div class="products-table-section">
+        <div class="products-table-wrap">
             <table class="table">
                 <thead>
                     <tr>
-                        <th class="table-col-id">#</th>
-                        <th class="table-col-image">Image</th>
+                        <th class="table-col-id text-center">#</th>
+                        <th class="table-col-image">Foto</th>
+                        <th class="table-col-info">Informasi Produk</th>
+                        <th class="table-col-code">Kode</th>
+                        <th class="table-col-price">Harga</th>
+                        <th class="table-col-stock">Stok</th>
                         <th class="table-col-barcode">Barcode</th>
-                        <th class="table-col-code">Code</th>
-                        <th class="table-col-name">Name</th>
-                        <th class="table-col-category">Category</th>
-                        <th class="table-col-price">Price</th>
-                        <th class="table-col-stock">Stock</th>
-                        <th class="table-col-actions">Actions</th>
+                        <th class="table-col-actions text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -330,12 +330,13 @@ function renderProductsTableSection($products, $barcodeGen, $low_stock_threshold
                 </tbody>
             </table>
         </div>
+        </div>
         <?php
         return ob_get_clean();
     }
 
-    ob_start();
-    ?>
+ob_start();
+?>
     <div class="stat-card">
         <div class="empty-state">
             <div class="empty-state-icon">

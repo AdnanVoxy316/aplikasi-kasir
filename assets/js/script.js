@@ -2458,6 +2458,7 @@
       bindProductCategoryAutoCode();
       bindProductFormEvents();
       initializeProductFilters();
+      initBarcodeZoom();
 
       const sidebarLinks = document.querySelectorAll(".sidebar-menu a");
       sidebarLinks.forEach((link) => {
@@ -2484,6 +2485,68 @@
       }
     });
   });
+})();
+
+/* --- BARCODE ZOOM MODAL --- */
+(function barcodeZoomLogic() {
+  let currentOverlay = null;
+
+  function initBarcodeZoom() {
+    document.querySelectorAll(".btn-barcode-zoom").forEach(function(btn) {
+      btn.addEventListener("click", function() {
+        const code = btn.getAttribute("data-code") || "";
+        const barcodeHtml = btn.closest(".product-barcode-cell").querySelector(".product-barcode-wrapper").innerHTML;
+        showBarcodeZoomModal(code, barcodeHtml);
+      });
+    });
+  }
+
+  function showBarcodeZoomModal(code, barcodeHtml) {
+    closeBarcodeZoomModal();
+
+    const overlay = document.createElement("div");
+    overlay.className = "barcode-zoom-overlay";
+    overlay.innerHTML = `
+      <div class="barcode-zoom-content">
+        <div class="barcode-zoom-code">${code}</div>
+        <div class="barcode-zoom-barcode">${barcodeHtml}</div>
+        <button class="barcode-zoom-close" onclick="closeBarcodeZoomModal()">
+          <i class="fas fa-times"></i> Tutup
+        </button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+    currentOverlay = overlay;
+
+    requestAnimationFrame(function() {
+      overlay.classList.add("active");
+    });
+
+    overlay.addEventListener("click", function(e) {
+      if (e.target === overlay) {
+        closeBarcodeZoomModal();
+      }
+    });
+  }
+
+  window.toggleBarcodeZoom = function(btn, code) {
+    const barcodeHtml = btn.closest(".product-barcode-cell").querySelector(".product-barcode-wrapper").innerHTML;
+    showBarcodeZoomModal(code, barcodeHtml);
+  };
+
+  window.closeBarcodeZoomModal = function() {
+    if (currentOverlay) {
+      currentOverlay.classList.remove("active");
+      setTimeout(function() {
+        if (currentOverlay && currentOverlay.parentNode) {
+          currentOverlay.parentNode.removeChild(currentOverlay);
+        }
+        currentOverlay = null;
+      }, 300);
+    }
+  };
+
+  window.initBarcodeZoom = initBarcodeZoom;
 })();
 
 /* --- LABEL GENERATION LOGIC --- */
