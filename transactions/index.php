@@ -432,12 +432,12 @@ $activeCashier = getActiveCashierName();
         <div class="content transaction-content">
             <div class="transaction-topbar">
                 <div>
-                    <h3 class="transaction-title">Transaction Module</h3>
-                    <p class="transaction-subtitle">Hybrid input: Manual kode, USB scanner, dan kamera scanner.</p>
+                    <h3 class="settings-title transaction-title">Transaction Control Center</h3>
+                    <small class="settings-subtitle transaction-subtitle">Pusat kendali input transaksi dan proses pembayaran</small>
                 </div>
             </div>
 
-            <div class="row g-3 mt-2">
+            <div class="row g-3 mt-0">
                 <div class="col-lg-7">
                     <div class="stat-card transaction-input-card">
                         <label for="transactionCodeInput" class="form-label">Kode Produk</label>
@@ -452,7 +452,7 @@ $activeCashier = getActiveCashierName();
                             <button type="button" class="btn btn-minimalist-success" id="transactionAddBtn">
                                 <i class="fas fa-plus me-1"></i> Tambah
                             </button>
-                            <button type="button" class="btn btn-minimalist-primary" id="transactionCameraScanBtn">
+                            <button type="button" class="btn btn-minimalist-purple" id="transactionCameraScanBtn">
                                 <i class="fas fa-camera me-1"></i> Scan
                             </button>
                         </div>

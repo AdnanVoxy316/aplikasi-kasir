@@ -1900,8 +1900,12 @@
     const categorySelect = document.getElementById("productCategory");
     const codeInput = document.getElementById("productCode");
     if (!categorySelect || !codeInput) return;
+
+    const prefix = getCategoryPrefix(categorySelect.value);
+    if (!prefix) return;
+
     enforceProductCodePrefix(categorySelect, codeInput, {
-      clearWithoutPrefix: true,
+      clearWithoutPrefix: false,
     });
   }
 
@@ -2449,7 +2453,7 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     ensureDependencies().finally(() => {
-      installProductCodeGuard("productCategory", "productCode", true);
+      installProductCodeGuard("productCategory", "productCode", false);
       installProductCodeGuard("editProductCategory", "editProductCode", false);
       bindProductCategoryAutoCode();
       bindProductFormEvents();

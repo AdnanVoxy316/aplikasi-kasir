@@ -8,6 +8,28 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../config/auth.php';
 require_once __DIR__ . '/../libraries/BarcodeGenerator.php';
 
+// Auto-create products table if it doesn't exist
+$tableCheck = $conn->query("SHOW TABLES LIKE 'products'");
+if (!$tableCheck || $tableCheck->num_rows === 0) {
+    $conn->query("CREATE TABLE IF NOT EXISTS `products` (
+        `id` int(11) NOT NULL AUTO_INCREMENT,
+        `code` varchar(50) NOT NULL COMMENT 'Product code/SKU',
+        `name` varchar(255) NOT NULL COMMENT 'Product name',
+        `price` decimal(10,2) NOT NULL DEFAULT 0.00 COMMENT 'Product price',
+        `stock` int(11) NOT NULL DEFAULT 0 COMMENT 'Product stock quantity',
+        `image` varchar(255) DEFAULT NULL COMMENT 'Product image filename',
+        `description` text DEFAULT NULL COMMENT 'Product description',
+        `category` varchar(100) DEFAULT NULL COMMENT 'Product category',
+        `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+        `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `code` (`code`),
+        KEY `idx_code` (`code`),
+        KEY `idx_name` (`name`),
+        KEY `idx_category` (`category`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Products inventory'");
+}
+
 $is_guest_mode = !isLoggedIn();
 
 // Initialize Barcode Generator

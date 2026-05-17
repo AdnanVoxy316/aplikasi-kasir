@@ -2266,7 +2266,7 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 .transaction-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .transaction-topbar {
@@ -2280,12 +2280,17 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 .transaction-title {
   margin: 0;
   color: var(--text-dark);
-  font-weight: 700;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .transaction-subtitle {
-  margin: 8px 0 0;
-  color: var(--text-muted-2);
+  display: block;
+  margin-top: 0.375rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.5;
 }
 
 .transaction-cashier-meta {
@@ -2312,23 +2317,27 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 }
 
 .transaction-input-card {
-  border-left-color: #10b981;
+  border-left-color: rgba(40, 167, 69, 0.42);
 }
 
 .transaction-scanner-card {
-  border-left-color: #3b82f6;
+  border-left-color: rgba(124, 58, 237, 0.38);
 }
 
 .transaction-cart-panel {
-  border-left: 4px solid #7c3aed;
+  border-left: 4px solid rgba(220, 53, 69, 0.38);
 }
 
 .transaction-summary-panel {
-  border-left: 4px solid #3b82f6;
+  border-left: 4px solid rgba(124, 58, 237, 0.38);
 }
 
 .transaction-payment-card {
-  border-left: 4px solid #10b981;
+  border-left: 4px solid rgba(40, 167, 69, 0.42);
+}
+
+.transaction-input-card .form-label {
+  color: var(--settings-green);
 }
 
 .transaction-code-input-wrap {
@@ -2359,6 +2368,14 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+}
+
+.transaction-scanner-header h6 {
+  color: var(--settings-purple);
+}
+
+.transaction-scanner-header h6 i {
+  color: var(--settings-purple);
 }
 
 .transaction-scanner-area {
