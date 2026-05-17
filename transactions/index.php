@@ -473,6 +473,7 @@ $activeCashier = getActiveCashierName();
                 </div>
             </div>
 
+            <!-- Keranjang Belanja -->
             <div class="transaction-cart-panel">
                 <div class="transaction-cart-hero">
                     <h3 class="transaction-cart-title">Keranjang Belanja</h3>
@@ -480,7 +481,6 @@ $activeCashier = getActiveCashierName();
                         <i class="fas fa-trash me-1"></i>Kosongkan
                     </button>
                 </div>
-
                 <div class="transaction-cart-table-wrap" id="transactionCartTableWrap">
                     <table class="transaction-cart-table" id="transactionCartTable">
                         <thead>
@@ -503,11 +503,7 @@ $activeCashier = getActiveCashierName();
                                         <td class="text-center"><?php echo (int) $item['qty']; ?></td>
                                         <td class="text-end">Rp <?php echo number_format($item['line_subtotal'], 0, ',', '.'); ?></td>
                                         <td class="text-center">
-                                            <button
-                                                type="button"
-                                                class="btn btn-minimalist-danger btn-minimalist-xs transaction-remove-item-btn"
-                                                data-product-id="<?php echo (int) $item['product_id']; ?>"
-                                            >
+                                            <button type="button" class="btn btn-minimalist-danger btn-minimalist-xs transaction-remove-item-btn" data-product-id="<?php echo (int) $item['product_id']; ?>">
                                                 <i class="fas fa-trash-alt"></i>
                                             </button>
                                         </td>
@@ -521,54 +517,45 @@ $activeCashier = getActiveCashierName();
                         </tbody>
                     </table>
                 </div>
+            </div>
 
-                <div class="transaction-cart-footer">
-                    <div class="transaction-summary-panel">
-                        <div class="transaction-summary-item">
-                            <span class="transaction-summary-label">Subtotal</span>
-                            <span class="transaction-summary-value" id="transactionSubtotal">Rp <?php echo number_format($cartSummary['subtotal'], 0, ',', '.'); ?></span>
-                        </div>
-                        <div class="transaction-summary-item">
-                            <span class="transaction-summary-label">Pajak (11%)</span>
-                            <span class="transaction-summary-value" id="transactionTax">Rp <?php echo number_format($cartSummary['tax'], 0, ',', '.'); ?></span>
-                        </div>
-                        <div class="transaction-summary-item transaction-summary-item--total">
-                            <span class="transaction-summary-label">Total Bayar</span>
-                            <span class="transaction-summary-value" id="transactionTotal">Rp <?php echo number_format($cartSummary['total'], 0, ',', '.'); ?></span>
-                        </div>
-                    </div>
+            <!-- Ringkasan Belanja -->
+            <div class="transaction-summary-panel">
+                <div class="transaction-summary-row">
+                    <span>Subtotal</span>
+                    <span id="transactionSubtotal">Rp <?php echo number_format($cartSummary['subtotal'], 0, ',', '.'); ?></span>
+                </div>
+                <div class="transaction-summary-row">
+                    <span>Pajak (11%)</span>
+                    <span id="transactionTax">Rp <?php echo number_format($cartSummary['tax'], 0, ',', '.'); ?></span>
+                </div>
+                <div class="transaction-summary-row transaction-summary-row--total">
+                    <span>Total Bayar</span>
+                    <span id="transactionTotal">Rp <?php echo number_format($cartSummary['total'], 0, ',', '.'); ?></span>
+                </div>
+            </div>
 
-                    <div class="transaction-payment-form">
-                        <div class="transaction-payment-header">
-                            <span class="transaction-payment-title"><i class="fas fa-credit-card me-2"></i>Metode Pembayaran</span>
-                        </div>
-                        <div class="transaction-payment-fields">
-                            <div class="transaction-payment-field">
-                                <label class="transaction-field-label">Metode</label>
-                                <select id="transactionPaymentMethod" class="transaction-field-input">
-                                    <option value="Cash" selected>Cash</option>
-                                    <option value="QRIS" disabled>QRIS (Segera Hadir)</option>
-                                </select>
-                            </div>
-                            <div class="transaction-payment-field">
-                                <label class="transaction-field-label">Uang Bayar</label>
-                                <input type="number" min="0" step="100" class="transaction-field-input" id="transactionPaymentAmount" placeholder="Masukkan jumlah uang">
-                            </div>
-                            <div class="transaction-payment-field">
-                                <label class="transaction-field-label">Kembalian</label>
-                                <div class="transaction-change-display" id="transactionChangeAmount">Rp 0</div>
-                            </div>
-                        </div>
+            <!-- Metode Pembayaran -->
+            <div class="transaction-payment-card">
+                <div class="transaction-payment-row">
+                    <div class="transaction-payment-field-inline">
+                        <select id="transactionPaymentMethod" class="transaction-field-input">
+                            <option value="Cash" selected>Cash</option>
+                            <option value="QRIS" disabled>QRIS (Segera Hadir)</option>
+                        </select>
                     </div>
-
-                    <div class="transaction-action-bottom">
-                        <div class="transaction-notes-wrap">
-                            <input type="text" class="transaction-notes-input" id="transactionNotes" placeholder="Catatan transaksi (opsional)">
-                        </div>
-                        <button type="button" class="btn btn-product-save" id="transactionPayBtn">
-                            <i class="fas fa-cash-register me-1"></i> Bayar
-                        </button>
+                    <div class="transaction-payment-field-inline">
+                        <input type="number" min="0" step="100" class="transaction-field-input" id="transactionPaymentAmount" placeholder="Uang Bayar">
                     </div>
+                    <div class="transaction-payment-field-inline">
+                        <div class="transaction-change-display" id="transactionChangeAmount">Rp 0</div>
+                    </div>
+                </div>
+                <div class="transaction-checkout-row">
+                    <input type="text" class="transaction-notes-input" id="transactionNotes" placeholder="Catatan transaksi (opsional)">
+                    <button type="button" class="btn btn-product-save" id="transactionPayBtn">
+                        <i class="fas fa-cash-register me-1"></i> Bayar
+                    </button>
                 </div>
             </div>
         </div>
