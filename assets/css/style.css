@@ -2308,6 +2308,27 @@ body.sidebar-collapsed .sidebar-toggle-btn--external {
 .transaction-input-card,
 .transaction-scanner-card {
   height: 100%;
+  border-left: 4px solid;
+}
+
+.transaction-input-card {
+  border-left-color: #10b981;
+}
+
+.transaction-scanner-card {
+  border-left-color: #3b82f6;
+}
+
+.transaction-cart-panel {
+  border-left: 4px solid #7c3aed;
+}
+
+.transaction-summary-panel {
+  border-left: 4px solid #3b82f6;
+}
+
+.transaction-payment-card {
+  border-left: 4px solid #10b981;
 }
 
 .transaction-code-input-wrap {
